@@ -36,7 +36,10 @@ def test_many_open_tasks_adds_points():
 
 
 def test_inbox_pressure_adds_points():
-    score, explanation = score_from_features(_features(inbox_unread=55, tasks_overdue=0))
+    # incoming_24h=5 breaks calm_state condition (requires incoming < 5)
+    score, explanation = score_from_features(
+        _features(inbox_unread=55, tasks_overdue=0, incoming_24h=5)
+    )
     assert score > 50
     assert "inbox_pressure" in explanation
 

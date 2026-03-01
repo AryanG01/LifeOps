@@ -95,5 +95,5 @@ def test_canvas_parser(fixture):
 
 
 def test_is_canvas_email_helper():
-    assert is_canvas_email("notifications@instructure.com", "Assignment: CS2100 test") is True
-    assert is_canvas_email("boss@company.com", "Meeting tomorrow") is False
+    assert is_canvas_email("notifications@instructure.com", "Assignment: CS2100 test", "") is True
+    assert is_canvas_email("boss@company.com", "Meeting tomorrow", "Let's meet at 3pm.") is False
