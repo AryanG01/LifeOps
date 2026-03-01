@@ -62,19 +62,45 @@ def schedule_reminders_for_task(task_id: str, cadence: str | None = None) -> int
         return count
 
 
+def _format_reminder_message(task: "ActionItem", reminder: "Reminder") -> str:
+    due_str = task.due_at.strftime("%a %b %d %H:%M") if task.due_at else "no due date"
+    return (
+        f"⏰ *Reminder*\n"
+        f"*{task.title}*\n"
+        f"Due: {due_str}\n"
+        f"{task.details or ''}"
+    ).strip()
+
+
 def dispatch_due_reminders(now: datetime | None = None) -> int:
-    """Mark pending reminders as sent if their time has passed. Returns count dispatched."""
+    """Mark pending reminders as sent and push via Telegram if enabled. Returns count dispatched."""
+    from core.telegram_client import send_message  # lazy import to avoid circular deps
+
     if now is None:
         now = datetime.now(tz=timezone.utc)
+
     with get_db() as db:
-        due = db.query(Reminder).filter(
-            Reminder.status == "pending",
-            Reminder.remind_at <= now,
-        ).all()
+        due = (
+            db.query(Reminder)
+            .filter(Reminder.status == "pending", Reminder.remind_at <= now)
+            .all()
+        )
+        task_ids = [r.action_item_id for r in due]
+        tasks = {
+            str(t.id): t
+            for t in db.query(ActionItem).filter(ActionItem.id.in_(task_ids)).all()
+        }
+
         count = 0
         for reminder in due:
             reminder.status = "sent"
             reminder.sent_at = now
+
+            task = tasks.get(str(reminder.action_item_id))
+            if task:
+                msg = _format_reminder_message(task, reminder)
+                send_message(msg)  # fail-soft — never raises
+
             log.info(
                 "reminder_dispatched",
                 reminder_id=reminder.id,
@@ -83,5 +109,6 @@ def dispatch_due_reminders(now: datetime | None = None) -> int:
             )
             count += 1
         db.commit()
+
     log.info("reminders_dispatch_complete", dispatched=count)
     return count

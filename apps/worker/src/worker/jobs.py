@@ -48,9 +48,13 @@ def job_schedule_reminders():
 
 
 def job_daily_pvi_and_digest():
+    from core.telegram_client import send_digest
+
     with get_db() as db:
         user_ids = [str(u.id) for u in db.query(User).all()]
 
     for user_id in user_ids:
         compute_pvi_daily(user_id)
-        generate_digest(user_id)
+        content = generate_digest(user_id)
+        sent = send_digest(content)
+        log.info("daily_digest_pushed", user_id=user_id, telegram_sent=sent)
