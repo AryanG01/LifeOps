@@ -57,6 +57,8 @@ def job_extract_pending():
         log.info("llm_circuit_open_skipping_extraction")
         return
 
+    _was_failing = llm_breaker._failures > 0 or llm_breaker._tripped_at is not None
+
     try:
         settings = get_settings()
         success, failed = extract_all_pending(settings.llm_prompt_version)
@@ -68,13 +70,12 @@ def job_extract_pending():
             if llm_breaker.is_open():
                 alert(
                     "llm_circuit_open",
-                    "LLM extraction paused (5 consecutive all-fail runs). Will retry in 10 min.",
+                    "LLM extraction paused (5 consecutive failures). Will retry in 10 min.",
                     level="error",
                 )
         else:
-            was_failing = llm_breaker._failures > 0
             llm_breaker.record_success()
-            if was_failing:
+            if _was_failing:
                 alert("llm_circuit_reset", "LLM extraction resumed.", level="info")
 
     except Exception as exc:
@@ -124,7 +125,7 @@ def job_poll_outlook():
 
     except RuntimeError as exc:
         msg = str(exc).lower()
-        if "not connected" in msg or "auth" in msg:
+        if "not connected" in msg or "auth" in msg or "credentials" in msg:
             alert("outlook_auth", "Outlook auth expired. Run: `claw connect outlook`")
         else:
             alert("outlook_poll_error", f"Outlook poll failed: {exc}", level="error")
