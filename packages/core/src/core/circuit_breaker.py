@@ -41,7 +41,7 @@ class CircuitBreaker:
             log.warning("circuit_breaker_tripped", name=self.name, failures=self._failures)
 
     def record_success(self) -> None:
-        """Reset failure count and open the circuit."""
+        """Reset failure count and close the circuit (resume normal calls)."""
         if self._failures > 0 or self._tripped_at is not None:
             log.info("circuit_breaker_reset", name=self.name)
         self._failures = 0
