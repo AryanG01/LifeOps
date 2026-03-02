@@ -10,6 +10,7 @@ from worker.jobs import (
     job_schedule_reminders,
     job_daily_pvi_and_digest,
     job_meeting_prep,
+    job_heartbeat,
 )
 from core.config import get_settings
 import structlog
@@ -28,6 +29,7 @@ def start():
     scheduler.add_job(job_schedule_reminders, IntervalTrigger(minutes=1), id="dispatch_reminders")
     scheduler.add_job(job_meeting_prep, IntervalTrigger(minutes=5), id="meeting_prep")
     scheduler.add_job(job_daily_pvi_and_digest, CronTrigger(hour=7, minute=0), id="daily_pvi_digest")
+    scheduler.add_job(job_heartbeat, IntervalTrigger(minutes=5), id="heartbeat")
 
     log.info("scheduler_starting", jobs=scheduler.get_jobs())
     scheduler.start()
