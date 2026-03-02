@@ -112,6 +112,9 @@ async def handle_digest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         from core.digest.generator import generate_digest
         from core.telegram_client import send_digest
         content = generate_digest(settings.default_user_id)
+        if not content:
+            await update.message.reply_text("⚠️ No digest data available for today.")
+            return
         send_digest(content)
         await update.message.reply_text("Digest sent.")
     except Exception as exc:
@@ -168,6 +171,11 @@ async def handle_focus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if args:
         try:
             minutes = int(args[0])
+            if minutes <= 0:
+                await update.message.reply_text(
+                    "Usage: /focus 30  \\(minutes must be > 0\\)", parse_mode="MarkdownV2"
+                )
+                return
         except ValueError:
             await update.message.reply_text(
                 "Usage: /focus 30  \\(minutes\\)", parse_mode="MarkdownV2"
@@ -229,6 +237,6 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         lines.append("LLM circuit: unknown")
 
     # Telegram
-    lines.append("Telegram: connected \\(you're reading this\\!")
+    lines.append("Telegram: connected \\(you're reading this\\!\\)")
 
     await update.message.reply_text("\n".join(lines), parse_mode="MarkdownV2")
