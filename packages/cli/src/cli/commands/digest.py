@@ -9,15 +9,22 @@ console = Console()
 
 def cmd_digest(
     for_date: str = typer.Argument("today", help="Date (YYYY-MM-DD) or 'today'"),
+    weekly: bool = typer.Option(False, "--weekly", "-w", help="Show 7-day review instead"),
 ):
-    """Generate and display today's digest."""
+    """Generate and display today's digest (or weekly review with --weekly)."""
+    from core.config import get_settings
+
+    settings = get_settings()
+
+    if weekly:
+        from core.digest.weekly import generate_weekly_review
+        content = generate_weekly_review(settings.default_user_id)
+        console.print(Markdown(content))
+        return
+
     from core.digest.generator import generate_digest
     from core.db.engine import get_db
     from core.db.models import Digest
-    from core.config import get_settings
-    from datetime import date as date_cls
-
-    settings = get_settings()
 
     if for_date == "today":
         content = generate_digest(settings.default_user_id)

@@ -67,6 +67,17 @@ def job_poll_gcal():
         poll_gcal(user_id, source_id)
 
 
+def job_meeting_prep():
+    from core.calendar.prep import generate_prep_for_upcoming
+    from core.telegram_client import send_message
+    from core.config import get_settings
+
+    settings = get_settings()
+    summaries = generate_prep_for_upcoming(settings.default_user_id)
+    for msg in summaries:
+        send_message(msg)
+
+
 def job_daily_pvi_and_digest():
     from core.telegram_client import send_digest
 
