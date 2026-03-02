@@ -344,6 +344,31 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
             action_items=len(extraction.action_items) if extraction else 0,
         )
 
+    # Push Telegram notification for high-priority tasks (fail-soft)
+    if extraction:
+        settings2 = get_settings()
+        from core.telegram_notify import send_task_notification
+        for item in extraction.action_items:
+            if item.priority >= settings2.bot_notify_min_priority:
+                try:
+                    with get_db() as db:
+                        saved = db.query(ActionItem).filter_by(
+                            user_id=msg_data["user_id"],
+                            title=item.title,
+                            status="proposed",
+                        ).order_by(ActionItem.created_at.desc()).first()
+                        saved_id = str(saved.id) if saved else None
+                        saved_due = saved.due_at if saved else None
+                    if saved_id:
+                        send_task_notification(
+                            task_id=saved_id,
+                            title=item.title,
+                            priority=item.priority,
+                            due_at=saved_due,
+                        )
+                except Exception as exc:
+                    log.warning("task_notify_lookup_failed", error=str(exc))
+
     return not failed
 
 
