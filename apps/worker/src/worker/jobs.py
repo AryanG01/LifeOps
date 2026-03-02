@@ -53,11 +53,11 @@ def job_poll_and_normalize():
 
 def job_extract_pending():
     """Run LLM extraction on all pending messages. Protected by circuit breaker."""
+    _was_failing = llm_breaker._failures > 0 or llm_breaker._tripped_at is not None
+
     if llm_breaker.is_open():
         log.info("llm_circuit_open_skipping_extraction")
         return
-
-    _was_failing = llm_breaker._failures > 0 or llm_breaker._tripped_at is not None
 
     try:
         settings = get_settings()
