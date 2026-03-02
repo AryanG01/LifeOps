@@ -1,5 +1,6 @@
 # packages/core/src/core/digest/generator.py
 from datetime import datetime, timedelta, date, timezone
+from sqlalchemy import or_
 from core.db.engine import get_db
 from core.db.models import ActionItem, Message, MessageSummary, Policy, Digest, PVIDailyScore
 import structlog
@@ -40,12 +41,16 @@ def generate_digest(user_id: str, for_date: date | None = None) -> str:
             ActionItem.due_at <= week_end,
         ).order_by(ActionItem.due_at, ActionItem.priority.desc()).limit(max_items).all()
 
-        # Recent messages (announcements/updates)
+        # Recent messages (announcements/updates) — exclude triage-skipped newsletters/promos
         recent_messages = db.query(Message, MessageSummary).join(
             MessageSummary, MessageSummary.message_id == Message.id, isouter=True
         ).filter(
             Message.user_id == user_id,
             Message.ingested_at >= datetime.now(tz=timezone.utc) - timedelta(days=1),
+            or_(
+                MessageSummary.id.is_(None),
+                MessageSummary.summary_short != "triage:skip",
+            ),
         ).order_by(Message.message_ts.desc()).limit(max_items).all()
 
         lines = [f"# Clawdbot Digest — {for_date} (Policy: {regime}, max {max_items})", ""]

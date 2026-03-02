@@ -18,22 +18,29 @@ def generate_weekly_review(user_id: str) -> str:
             ActionItem.user_id == user_id,
             ActionItem.created_at >= week_ago,
         ).all()
-        done = [t for t in all_tasks if t.status == "done"]
-        overdue = [t for t in all_tasks if t.status == "active" and t.due_at and t.due_at < now]
-        proposed = [t for t in all_tasks if t.status == "proposed"]
+        done_count = sum(1 for t in all_tasks if t.status == "done")
+        overdue_items = [
+            (t.title, t.due_at)
+            for t in all_tasks
+            if t.status == "active" and t.due_at and t.due_at < now
+        ]
+        proposed_count = sum(1 for t in all_tasks if t.status == "proposed")
 
         pvi_scores = db.query(PVIDailyScore).filter(
             PVIDailyScore.user_id == user_id,
             PVIDailyScore.date >= week_ago.date(),
         ).order_by(PVIDailyScore.date).all()
+        pvi_map = {p.date: p.score for p in pvi_scores}
+        avg_pvi = sum(p.score for p in pvi_scores) / len(pvi_scores) if pvi_scores else 0
 
         emails_processed = db.query(Message).filter(
             Message.user_id == user_id,
             Message.ingested_at >= week_ago,
         ).count()
 
-    # PVI sparkline
-    pvi_map = {p.date: p.score for p in pvi_scores}
+    completion_rate = done_count / len(all_tasks) * 100 if all_tasks else 0
+
+    # PVI sparkline (all plain data now, no ORM access)
     sparkline = ""
     for i in range(7):
         d = (now - timedelta(days=6 - i)).date()
@@ -49,9 +56,6 @@ def generate_weekly_review(user_id: str) -> str:
         else:
             sparkline += "▂"
 
-    avg_pvi = sum(p.score for p in pvi_scores) / len(pvi_scores) if pvi_scores else 0
-    completion_rate = len(done) / len(all_tasks) * 100 if all_tasks else 0
-
     lines = [
         f"# Weekly Review — {today.strftime('%d %b %Y')}",
         "",
@@ -59,9 +63,9 @@ def generate_weekly_review(user_id: str) -> str:
         f"PVI trend (7d): {sparkline}  avg: {avg_pvi:.0f}",
         "",
         "## Tasks",
-        f"✓ Completed: {len(done)}",
-        f"⚠ Overdue: {len(overdue)}",
-        f"○ Proposed (unreviewed): {len(proposed)}",
+        f"✓ Completed: {done_count}",
+        f"⚠ Overdue: {len(overdue_items)}",
+        f"○ Proposed (unreviewed): {proposed_count}",
         f"Completion rate: {completion_rate:.0f}%",
         "",
         "## Inbox",
@@ -69,11 +73,11 @@ def generate_weekly_review(user_id: str) -> str:
         "",
     ]
 
-    if overdue:
+    if overdue_items:
         lines.append("## Still Outstanding")
-        for t in overdue[:5]:
-            due = t.due_at.strftime("%d %b") if t.due_at else "—"
-            lines.append(f"• {t.title[:60]} (due {due})")
+        for title, due_at in overdue_items[:5]:
+            due = due_at.strftime("%d %b") if due_at else "—"
+            lines.append(f"• {title[:60]} (due {due})")
         lines.append("")
 
     return "\n".join(lines)

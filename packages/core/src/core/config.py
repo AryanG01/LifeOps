@@ -1,10 +1,14 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
-import json
+
+# Resolve .env from project root (packages/core/src/core/ → 4 parents up)
+_project_root = Path(__file__).parent.parent.parent.parent.parent
+_env_file = _project_root / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_env_file), extra="ignore")
 
     # Database
     database_url: str = Field(
@@ -14,11 +18,9 @@ class Settings(BaseSettings):
     # LLM — provider: "gemini" (free, default) or "anthropic"
     llm_provider: str = Field(default="gemini")
     gemini_api_key: str = Field(default="")
-    gemini_model: str = Field(default="gemini-2.0-flash")
+    gemini_model: str = Field(default="gemini-2.5-flash")
     anthropic_api_key: str = Field(default="")
     anthropic_model: str = Field(default="claude-sonnet-4-6")
-    # legacy alias — resolved at runtime based on provider
-    llm_model: str = Field(default="")
     llm_mode: str = Field(default="enabled")          # enabled | disabled
     llm_triage_enabled: bool = Field(default=True)
     llm_triage_model: str = Field(default="gemini-2.5-flash-lite")

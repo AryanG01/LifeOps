@@ -44,3 +44,9 @@ def cmd_digest(
                 content = d.content_md
 
     console.print(Markdown(content))
+
+    if settings.telegram_enabled:
+        from core.telegram_client import send_digest
+        sent = send_digest(content)
+        if sent:
+            rprint("[dim]✓ Sent to Telegram[/dim]")

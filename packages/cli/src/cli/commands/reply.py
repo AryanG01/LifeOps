@@ -40,6 +40,7 @@ def list_replies():
 @app.command("view")
 def view_reply(msg_id: str = typer.Argument(help="Message ID prefix (first 8 chars)")):
     """View the draft reply for a message."""
+    from sqlalchemy import String
     from core.db.engine import get_db
     from core.db.models import ReplyDraft, Message
 
@@ -48,7 +49,7 @@ def view_reply(msg_id: str = typer.Argument(help="Message ID prefix (first 8 cha
             db.query(ReplyDraft)
             .join(Message, ReplyDraft.message_id == Message.id)
             .filter(
-                Message.id.like(f"{msg_id}%"),
+                Message.id.cast(String).like(f"{msg_id}%"),
                 ReplyDraft.status == "proposed",
             )
             .first()
@@ -71,6 +72,7 @@ def send_reply(
     import base64
     import email.mime.text
 
+    from sqlalchemy import String
     from core.db.engine import get_db
     from core.db.models import ReplyDraft, Message
 
@@ -79,12 +81,12 @@ def send_reply(
             db.query(ReplyDraft)
             .join(Message, ReplyDraft.message_id == Message.id)
             .filter(
-                Message.id.like(f"{msg_id}%"),
+                Message.id.cast(String).like(f"{msg_id}%"),
                 ReplyDraft.status == "proposed",
             )
             .first()
         )
-        msg = db.query(Message).filter(Message.id.like(f"{msg_id}%")).first()
+        msg = db.query(Message).filter(Message.id.cast(String).like(f"{msg_id}%")).first()
 
         if not draft_row or not msg:
             rprint(f"[red]Draft not found for {msg_id}[/red]")

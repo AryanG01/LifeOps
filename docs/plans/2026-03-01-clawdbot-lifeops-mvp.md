@@ -44,11 +44,14 @@
 ## ALL MVP TASKS COMPLETE ✓
 
 ## NEXT SESSION — Continue building:
-- [ ] claw status — system health overview (DB, Gmail, LLM, Telegram, pending counts)
-- [ ] claw reminders list — view upcoming pending reminders
-- [ ] Remove legacy llm_model field from config.py
-- [ ] claw worker start — start background scheduler from CLI
-- [ ] End-to-end test with real Gmail + Gemini API
+- [x] claw status — system health overview (DB, Gmail, LLM, Telegram, pending counts)
+- [x] claw reminders list — view upcoming pending reminders
+- [x] Remove legacy llm_model field from config.py
+- [x] claw worker start — start background scheduler from CLI
+- [x] End-to-end test with real Gmail + Gemini API (pipeline validated)
+
+## Phase 2 Plan
+See: docs/plans/2026-03-02-clawdbot-phase2.md
 
 ---
 
