@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(default="")
     telegram_chat_id: str = Field(default="")
     telegram_enabled: bool = Field(default=False)
+    # Telegram bot notification threshold (priority >= this → push inline keyboard)
+    bot_notify_min_priority: int = Field(default=60)
 
 
 _settings: Settings | None = None
