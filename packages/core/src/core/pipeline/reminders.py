@@ -62,6 +62,18 @@ def schedule_reminders_for_task(task_id: str, cadence: str | None = None) -> int
         return count
 
 
+def _is_in_focus(db, user_id: str) -> bool:
+    """Return True if user has an active, unexpired focus session."""
+    from core.db.models import FocusSession
+    now = datetime.now(tz=timezone.utc)
+    session = db.query(FocusSession).filter(
+        FocusSession.user_id == user_id,
+        FocusSession.is_active == True,  # noqa: E712
+        FocusSession.ends_at > now,
+    ).first()
+    return session is not None
+
+
 def _format_reminder_message(task: "ActionItem", reminder: "Reminder") -> str:
     due_str = task.due_at.strftime("%a %b %d %H:%M") if task.due_at else "no due date"
     return (
@@ -99,7 +111,10 @@ def dispatch_due_reminders(now: datetime | None = None) -> int:
             task = tasks.get(str(reminder.action_item_id))
             if task:
                 msg = _format_reminder_message(task, reminder)
-                send_message(msg)  # fail-soft — never raises
+                if reminder.channel == "telegram" and _is_in_focus(db, str(reminder.user_id)):
+                    log.info("reminder_suppressed_focus_mode", reminder_id=reminder.id)
+                else:
+                    send_message(msg)  # fail-soft — never raises
 
             log.info(
                 "reminder_dispatched",

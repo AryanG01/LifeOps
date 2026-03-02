@@ -9,6 +9,7 @@ dependencies = [
     "google-api-python-client>=2.125",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
+    "msal>=1.28",
 ]
 
 [build-system]

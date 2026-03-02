@@ -40,6 +40,10 @@ class Settings(BaseSettings):
         default="00000000-0000-0000-0000-000000000001"
     )
 
+    # Microsoft Graph / Outlook
+    outlook_client_id: str = Field(default="")
+    outlook_token_service: str = Field(default="clawdbot-outlook")
+
     # Gmail
     gmail_credentials_path: str = Field(
         default="~/.config/clawdbot/gmail_credentials.json"
