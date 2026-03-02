@@ -346,10 +346,9 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
 
     # Push Telegram notification for high-priority tasks (fail-soft)
     if extraction:
-        settings2 = get_settings()
         from core.telegram_notify import send_task_notification
         for item in extraction.action_items:
-            if item.priority >= settings2.bot_notify_min_priority:
+            if item.priority >= settings.bot_notify_min_priority:
                 try:
                     with get_db() as db:
                         saved = db.query(ActionItem).filter_by(
