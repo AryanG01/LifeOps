@@ -42,11 +42,14 @@ def alert(
         log.debug("health_alert_suppressed", key=key)
         return
 
-    _last_alert[key] = now
     emoji = {"warning": "⚠️", "error": "🔴", "info": "ℹ️"}.get(level, "⚠️")
     try:
-        send_message(f"{emoji} *Clawdbot Alert*\n{message}")
-        log.info("health_alert_sent", key=key, level=level)
+        sent = send_message(f"{emoji} *Clawdbot Alert*\n{message}")
+        if sent:
+            _last_alert[key] = now
+            log.info("health_alert_sent", key=key, level=level)
+        else:
+            log.warning("health_alert_send_failed", key=key)
     except Exception as exc:
         log.error("health_alert_failed", key=key, error=str(exc))
 

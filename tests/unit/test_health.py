@@ -58,3 +58,14 @@ def test_alert_info_level_uses_info_emoji():
     with patch("core.health.send_message") as mock_send:
         alert("key1", "FYI", level="info")
     assert "ℹ️" in mock_send.call_args[0][0]
+
+
+def test_alert_retries_after_send_failure():
+    """Cooldown should NOT activate when send_message returns False."""
+    with patch("core.health.send_message", return_value=False):
+        alert("key1", "First attempt")
+
+    with patch("core.health.send_message") as mock_send:
+        mock_send.return_value = True
+        alert("key1", "Retry")
+    mock_send.assert_called_once()
