@@ -11,8 +11,7 @@ from core.tokens import store_token, get_token
 
 log = structlog.get_logger()
 
-SCOPES = ["Mail.Read", "Calendars.Read", "User.Read", "offline_access"]
-AUTHORITY = "https://login.microsoftonline.com/common"
+SCOPES = ["Mail.Read", "Calendars.Read", "User.Read"]
 
 
 def _build_app() -> msal.PublicClientApplication:
@@ -22,9 +21,10 @@ def _build_app() -> msal.PublicClientApplication:
             "OUTLOOK_CLIENT_ID not set in .env. "
             "Register an Azure app at https://portal.azure.com"
         )
+    authority = f"https://login.microsoftonline.com/{settings.outlook_tenant}"
     return msal.PublicClientApplication(
         client_id=settings.outlook_client_id,
-        authority=AUTHORITY,
+        authority=authority,
     )
 
 

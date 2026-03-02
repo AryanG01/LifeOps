@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # Microsoft Graph / Outlook
     outlook_client_id: str = Field(default="")
+    outlook_tenant: str = Field(default="common")  # "common" or e.g. "nus.edu.sg"
     outlook_token_service: str = Field(default="clawdbot-outlook")
 
     # Gmail
