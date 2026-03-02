@@ -35,10 +35,20 @@
 - [x] Task 14: FastAPI app + endpoints — commit 68c942b
 - [x] Task 15: Worker/scheduler (APScheduler) — commit 0871068
 - [x] Task 16: CLI (all claw commands) — commit e5c68db
-- [x] Task 17: Unit tests (dedup, canvas, pvi, llm schema, reminders) — commit 5627554
-- [x] Task 18: Integration tests + structured logging + Dockerfiles — commit 4e482f7
+- [x] Task 17: Unit tests (43/43 passing) — commit 5627554 + fixes 55f559a
+- [x] Task 18: Integration tests + logging + Dockerfiles — commit 4e482f7
+- [x] POST-MVP: Telegram delivery (send_message, send_digest, claw telegram) — commit 5b0611b
+- [x] POST-MVP: Gemini + Anthropic dual provider, claw llm status/use/test — commit dadbfc6
+- [x] POST-MVP: Bug fixes (savepoint rollback, sessionmaker singleton) — commit ffa2c03
 
-## ALL TASKS COMPLETE — MVP IMPLEMENTED ✓
+## ALL MVP TASKS COMPLETE ✓
+
+## NEXT SESSION — Continue building:
+- [ ] claw status — system health overview (DB, Gmail, LLM, Telegram, pending counts)
+- [ ] claw reminders list — view upcoming pending reminders
+- [ ] Remove legacy llm_model field from config.py
+- [ ] claw worker start — start background scheduler from CLI
+- [ ] End-to-end test with real Gmail + Gemini API
 
 ---
 
