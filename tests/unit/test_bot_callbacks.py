@@ -53,7 +53,6 @@ async def test_handle_accept_updates_status():
         await handle_callback(update, _make_context())
 
     assert mock_task.status == "active"
-    db.commit.assert_called_once()
     update.callback_query.edit_message_text.assert_awaited_once()
     edit_text = update.callback_query.edit_message_text.call_args[0][0]
     assert "accepted" in edit_text.lower() or "✓" in edit_text

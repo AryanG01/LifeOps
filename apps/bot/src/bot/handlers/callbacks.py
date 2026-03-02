@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 import structlog
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.helpers import escape_markdown
 
 from core.config import get_settings
 from core.db.engine import get_db
@@ -36,7 +37,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     await query.answer()  # removes the "loading" spinner on the button
 
-    data: str = query.data  # e.g. "accept:abc-123"
+    data: str | None = query.data
+    if not data:
+        await query.edit_message_text("⚠️ Unknown action.")
+        return
+
     parts = data.split(":", 1)
     if len(parts) != 2:
         await query.edit_message_text("⚠️ Unknown action.")
@@ -55,56 +60,69 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def _accept(query, task_id: str) -> None:
-    now = datetime.now(timezone.utc)
-    with get_db() as db:
-        task = db.query(ActionItem).filter_by(id=task_id).first()
-        if not task:
-            await query.edit_message_text("⚠️ Task not found.")
-            return
-        title = task.title
-        task.status = "active"
-        task.updated_at = now
-        db.commit()
-    log.info("task_accepted_via_bot", task_id=task_id)
-    await query.edit_message_text(f"✓ *Accepted:* {title}", parse_mode="Markdown")
+    try:
+        now = datetime.now(timezone.utc)
+        with get_db() as db:
+            task = db.query(ActionItem).filter_by(id=task_id).first()
+            if not task:
+                await query.edit_message_text("⚠️ Task not found.")
+                return
+            title = task.title
+            task.status = "active"
+            task.updated_at = now
+        log.info("task_accepted_via_bot", task_id=task_id)
+        safe_title = escape_markdown(title, version=2)
+        await query.edit_message_text(f"✓ *Accepted:* {safe_title}", parse_mode="MarkdownV2")
+    except Exception:
+        log.exception("accept_callback_error", task_id=task_id)
+        await query.edit_message_text("⚠️ Something went wrong accepting that task.")
 
 
 async def _dismiss(query, task_id: str) -> None:
-    now = datetime.now(timezone.utc)
-    with get_db() as db:
-        task = db.query(ActionItem).filter_by(id=task_id).first()
-        if not task:
-            await query.edit_message_text("⚠️ Task not found.")
-            return
-        title = task.title
-        task.status = "dismissed"
-        task.updated_at = now
-        db.commit()
-    log.info("task_dismissed_via_bot", task_id=task_id)
-    await query.edit_message_text(f"✗ *Dismissed:* {title}", parse_mode="Markdown")
+    try:
+        now = datetime.now(timezone.utc)
+        with get_db() as db:
+            task = db.query(ActionItem).filter_by(id=task_id).first()
+            if not task:
+                await query.edit_message_text("⚠️ Task not found.")
+                return
+            title = task.title
+            task.status = "dismissed"
+            task.updated_at = now
+        log.info("task_dismissed_via_bot", task_id=task_id)
+        safe_title = escape_markdown(title, version=2)
+        await query.edit_message_text(f"✗ *Dismissed:* {safe_title}", parse_mode="MarkdownV2")
+    except Exception:
+        log.exception("dismiss_callback_error", task_id=task_id)
+        await query.edit_message_text("⚠️ Something went wrong dismissing that task.")
 
 
 async def _snooze(query, task_id: str) -> None:
-    now = datetime.now(timezone.utc)
-    remind_at = now + timedelta(hours=_SNOOZE_HOURS)
-    with get_db() as db:
-        task = db.query(ActionItem).filter_by(id=task_id).first()
-        if not task:
-            await query.edit_message_text("⚠️ Task not found.")
-            return
-        title = task.title
-        user_id = str(task.user_id)
-        reminder = Reminder(
-            action_item_id=task_id,
-            user_id=user_id,
-            remind_at=remind_at,
-            channel="telegram",
-            status="pending",
+    try:
+        now = datetime.now(timezone.utc)
+        remind_at = now + timedelta(hours=_SNOOZE_HOURS)
+        with get_db() as db:
+            task = db.query(ActionItem).filter_by(id=task_id).first()
+            if not task:
+                await query.edit_message_text("⚠️ Task not found.")
+                return
+            title = task.title
+            user_id = str(task.user_id)
+            reminder = Reminder(
+                action_item_id=task_id,
+                user_id=user_id,
+                remind_at=remind_at,
+                channel="telegram",
+                status="pending",
+            )
+            db.add(reminder)
+        log.info("task_snoozed_via_bot", task_id=task_id, remind_at=remind_at.isoformat())
+        safe_title = escape_markdown(title, version=2)
+        time_str = escape_markdown(remind_at.strftime('%H:%M UTC'), version=2)
+        await query.edit_message_text(
+            f"⏰ *Snoozed 2h:* {safe_title}\nI'll remind you at {time_str}",
+            parse_mode="MarkdownV2",
         )
-        db.add(reminder)
-        db.commit()
-    log.info("task_snoozed_via_bot", task_id=task_id, remind_at=remind_at.isoformat())
-    await query.edit_message_text(
-        f"⏰ *Snoozed 2h:* {title}\nI'll remind you at {remind_at.strftime('%H:%M UTC')}",
-        parse_mode="Markdown",
-    )
+    except Exception:
+        log.exception("snooze_callback_error", task_id=task_id)
+        await query.edit_message_text("⚠️ Something went wrong snoozing that task.")
