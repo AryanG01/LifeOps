@@ -221,3 +221,33 @@ class Digest(Base):
     generated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("user_id", "date"),)
+
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    source_id = Column(UUID(as_uuid=False), ForeignKey("sources.id", ondelete="SET NULL"))
+    external_id = Column(Text, nullable=False)
+    title = Column(Text, nullable=False)
+    start_at = Column(DateTime(timezone=True), nullable=False)
+    end_at = Column(DateTime(timezone=True), nullable=False)
+    location = Column(Text)
+    attendees_json = Column(JSON, nullable=False, default=list)
+    description = Column(Text)
+    is_all_day = Column(Boolean, nullable=False, default=False)
+    ingested_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "external_id"),)
+
+
+class FocusSession(Base):
+    __tablename__ = "focus_sessions"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    ended_early_at = Column(DateTime(timezone=True))
+    is_active = Column(Boolean, nullable=False, default=True)

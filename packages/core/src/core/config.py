@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # legacy alias — resolved at runtime based on provider
     llm_model: str = Field(default="")
     llm_mode: str = Field(default="enabled")          # enabled | disabled
+    llm_triage_enabled: bool = Field(default=True)
+    llm_triage_model: str = Field(default="gemini-2.5-flash-lite")
     llm_prompt_version: str = Field(default="v1")
     llm_label_filter: list[str] = Field(default=["INBOX", "UNREAD"])
     llm_filter_canvas_always: bool = Field(default=True)

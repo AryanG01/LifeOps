@@ -43,19 +43,21 @@ def _call_llm(system: str, user: str) -> tuple[str, int, int]:
         return _call_gemini(system, user, settings)
 
 
-def _call_gemini(system: str, user: str, settings) -> tuple[str, int, int]:
+def _call_gemini(system: str, user: str, settings=None, model: str | None = None) -> tuple[str, int, int]:
     """
     Call Gemini via its OpenAI-compatible endpoint.
     Free tier: 250 req/day, 10 RPM for gemini-2.0-flash.
     """
     from openai import OpenAI
 
+    if settings is None:
+        settings = get_settings()
     client = OpenAI(
         api_key=settings.gemini_api_key,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     )
     response = client.chat.completions.create(
-        model=settings.gemini_model,
+        model=model or settings.gemini_model,
         max_tokens=1024,
         messages=[
             {"role": "system", "content": system},
@@ -67,14 +69,16 @@ def _call_gemini(system: str, user: str, settings) -> tuple[str, int, int]:
     return text, usage.prompt_tokens, usage.completion_tokens
 
 
-def _call_anthropic(system: str, user: str, settings) -> tuple[str, int, int]:
+def _call_anthropic(system: str, user: str, settings=None, model: str | None = None) -> tuple[str, int, int]:
     """Call Anthropic Claude API."""
     import anthropic
 
-    model = settings.anthropic_model or "claude-sonnet-4-6"
+    if settings is None:
+        settings = get_settings()
+    resolved_model = model or settings.anthropic_model or "claude-sonnet-4-6"
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.create(
-        model=model,
+        model=resolved_model,
         max_tokens=1024,
         system=system,
         messages=[{"role": "user", "content": user}],
@@ -82,6 +86,59 @@ def _call_anthropic(system: str, user: str, settings) -> tuple[str, int, int]:
     text = response.content[0].text
     usage = response.usage
     return text, usage.input_tokens, usage.output_tokens
+
+
+def _call_llm_raw(system: str, user: str, model_override: str | None = None) -> str:
+    """Call LLM with optional model override, return raw text response."""
+    settings = get_settings()
+    provider = settings.llm_provider
+    model = model_override or (
+        settings.gemini_model if provider == "gemini" else settings.anthropic_model
+    )
+    if provider == "gemini":
+        raw, _, _ = _call_gemini(system, user, model=model)
+    else:
+        raw, _, _ = _call_anthropic(system, user, model=model)
+    return raw
+
+
+# ---------------------------------------------------------------------------
+# Triage helpers
+# ---------------------------------------------------------------------------
+
+_TRIAGE_SYSTEM = (
+    'You are a triage filter. Respond with JSON only: {"actionable": true/false}. '
+    "An email is actionable if it requires the user to DO something: reply, submit, pay, attend, review, or decide. "
+    "Receipts, newsletters, automated notifications with no action required = false."
+)
+
+_TRIAGE_USER = "From: {sender}\nSubject: {subject}\nPreview: {preview}"
+
+
+def _is_actionable(sender: str, subject: str, preview: str) -> bool:
+    """Stage 1 triage: cheap LLM call to decide if email warrants full extraction."""
+    settings = get_settings()
+    user_prompt = _TRIAGE_USER.format(sender=sender, subject=subject, preview=preview[:200])
+    try:
+        raw = _call_llm_raw(
+            _TRIAGE_SYSTEM,
+            user_prompt,
+            model_override=settings.llm_triage_model,
+        )
+        return json.loads(raw).get("actionable", True)
+    except Exception:
+        return True  # fail open
+
+
+def _record_triage_skip(db, message_id: str, prompt_version: str) -> None:
+    db.add(MessageSummary(
+        message_id=message_id,
+        prompt_version=prompt_version,
+        summary_short="triage:skip",
+        urgency=0.0,
+        extraction_failed=False,
+    ))
+    db.commit()
 
 
 def _validate(raw_json: str) -> ExtractionResult:
@@ -174,6 +231,14 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
             return True
 
         body = msg.body_full or msg.body_preview
+
+        # Stage 1: cheap triage (skip if disabled)
+        if settings.llm_triage_enabled:
+            if not _is_actionable(msg.sender, msg.title, (body or "")[:300]):
+                log.info("extraction_skipped_triage", message_id=message_id, sender=msg.sender)
+                _record_triage_skip(db, message_id, prompt_version)
+                return True
+
         msg_data = {
             "user_id": str(msg.user_id),
             "sender": msg.sender,
