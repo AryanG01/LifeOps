@@ -47,6 +47,26 @@ def job_schedule_reminders():
     dispatch_due_reminders()
 
 
+def job_poll_outlook():
+    from connectors.outlook.poller import poll_outlook
+    from core.db.models import Source
+    with get_db() as db:
+        sources = db.query(Source).filter_by(source_type="outlook").all()
+        pairs = [(str(s.user_id), str(s.id)) for s in sources]
+    for user_id, source_id in pairs:
+        poll_outlook(user_id, source_id)
+
+
+def job_poll_gcal():
+    from connectors.gcal.poller import poll_gcal
+    from core.db.models import Source
+    with get_db() as db:
+        sources = db.query(Source).filter_by(source_type="gcal").all()
+        pairs = [(str(s.user_id), str(s.id)) for s in sources]
+    for user_id, source_id in pairs:
+        poll_gcal(user_id, source_id)
+
+
 def job_daily_pvi_and_digest():
     from core.telegram_client import send_digest
 

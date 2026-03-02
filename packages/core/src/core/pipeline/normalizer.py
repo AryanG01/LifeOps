@@ -31,6 +31,40 @@ def _parse_gmail_date(internal_date_ms: str | None) -> datetime:
     return datetime.now(tz=timezone.utc)
 
 
+def _parse_outlook_date(received_at: str | None) -> datetime:
+    """Convert Graph API receivedDateTime ISO string to timezone-aware datetime."""
+    if received_at:
+        try:
+            return datetime.fromisoformat(received_at.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    return datetime.now(tz=timezone.utc)
+
+
+def _extract_fields_from_payload(payload: dict, event_external_id: str | None) -> dict:
+    """Detect source format (Gmail vs Outlook) and return normalised fields dict."""
+    if "gmail_id" in payload:
+        # Gmail format
+        return {
+            "sender": payload.get("sender", ""),
+            "subject": payload.get("subject", ""),
+            "body": payload.get("body_text", payload.get("snippet", "")),
+            "external_id": payload.get("gmail_id", event_external_id or ""),
+            "message_ts": _parse_gmail_date(payload.get("internal_date")),
+            "label_ids": payload.get("label_ids", []),
+        }
+    else:
+        # Outlook / Graph format
+        return {
+            "sender": payload.get("sender", ""),
+            "subject": payload.get("title", ""),
+            "body": payload.get("body_full", payload.get("body_preview", "")),
+            "external_id": payload.get("external_id", event_external_id or ""),
+            "message_ts": _parse_outlook_date(payload.get("received_at")),
+            "label_ids": [],
+        }
+
+
 def normalize_raw_event(raw_event_id: str) -> str | None:
     """
     Normalize one raw_event into a message.
@@ -47,23 +81,25 @@ def normalize_raw_event(raw_event_id: str) -> str | None:
             return None
 
         payload: dict = event.payload_json
-        sender: str = payload.get("sender", "")
-        subject: str = payload.get("subject", "")
-        body: str = payload.get("body_text", payload.get("snippet", ""))
-        external_id: str = payload.get("gmail_id", event.external_id or "")
+        fields = _extract_fields_from_payload(payload, event.external_id)
+        sender: str = fields["sender"]
+        subject: str = fields["subject"]
+        body: str = fields["body"]
+        external_id: str = fields["external_id"]
+        message_ts: datetime = fields["message_ts"]
 
         dedup_hash = compute_dedup_hash(str(event.user_id), external_id, sender, subject)
 
         canvas = parse_canvas_email(sender, subject, body)
-        extra: dict = {}
+        extra: dict = {"label_ids": fields["label_ids"]}
         if canvas.is_canvas:
-            extra = {
+            extra.update({
                 "canvas_type": canvas.canvas_type,
                 "course_code": canvas.course_code,
                 "assignment_title": canvas.assignment_title,
                 "due_at_raw": canvas.due_at_raw,
                 "canvas_url": canvas.canvas_url,
-            }
+            })
 
         msg = Message(
             user_id=str(event.user_id),
@@ -74,7 +110,7 @@ def normalize_raw_event(raw_event_id: str) -> str | None:
             title=subject or "(no subject)",
             body_preview=body[:500],
             body_full=body if len(body) > 500 else None,
-            message_ts=_parse_gmail_date(payload.get("internal_date")),
+            message_ts=message_ts,
             dedup_hash=dedup_hash,
             is_canvas=canvas.is_canvas,
             extra_json=extra,
