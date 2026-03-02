@@ -32,15 +32,49 @@ log = structlog.get_logger()
 
 def _call_llm(system: str, user: str) -> tuple[str, int, int]:
     """
-    Call Anthropic API.
-    Returns (raw_text, input_tokens, output_tokens).
+    Call configured LLM provider. Returns (raw_text, input_tokens, output_tokens).
+    Supports: "gemini" (via OpenAI-compatible endpoint, free tier) or "anthropic".
     """
+    settings = get_settings()
+
+    if settings.llm_provider == "anthropic":
+        return _call_anthropic(system, user, settings)
+    else:
+        return _call_gemini(system, user, settings)
+
+
+def _call_gemini(system: str, user: str, settings) -> tuple[str, int, int]:
+    """
+    Call Gemini via its OpenAI-compatible endpoint.
+    Free tier: 250 req/day, 10 RPM for gemini-2.0-flash.
+    """
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=settings.gemini_api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    response = client.chat.completions.create(
+        model=settings.gemini_model,
+        max_tokens=1024,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    )
+    text = response.choices[0].message.content
+    usage = response.usage
+    return text, usage.prompt_tokens, usage.completion_tokens
+
+
+def _call_anthropic(system: str, user: str, settings) -> tuple[str, int, int]:
+    """Call Anthropic Claude API."""
     import anthropic
 
-    settings = get_settings()
+    model = settings.anthropic_model or "claude-sonnet-4-6"
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.create(
-        model=settings.llm_model,
+        model=model,
         max_tokens=1024,
         system=system,
         messages=[{"role": "user", "content": user}],
@@ -62,6 +96,11 @@ def _passes_label_filter(msg_payload_labels: list[str]) -> bool:
     return all(lbl in msg_payload_labels for lbl in settings.llm_label_filter)
 
 
+def _active_model_name() -> str:
+    s = get_settings()
+    return s.gemini_model if s.llm_provider == "gemini" else (s.anthropic_model or "claude-sonnet-4-6")
+
+
 def _record_run(
     db,
     message_id: str,
@@ -76,7 +115,7 @@ def _record_run(
     db.add(LLMRun(
         message_id=message_id,
         prompt_version=prompt_version,
-        model=get_settings().llm_model,
+        model=_active_model_name(),
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         latency_ms=latency_ms,
@@ -168,7 +207,6 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
             with get_db() as db:
                 _record_run(db, message_id, prompt_version, attempt,
                             in_tok, out_tok, latency_ms, True, None)
-                db.commit()
             log.info("extraction_succeeded", message_id=message_id, attempt=attempt)
             break  # success
         except Exception as exc:
@@ -183,7 +221,6 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
             with get_db() as db:
                 _record_run(db, message_id, prompt_version, attempt,
                             0, 0, latency_ms, False, failed_reason)
-                db.commit()
             if attempt == 2:
                 failed = True
 
@@ -203,15 +240,15 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
         if extraction:
             for lbl in extraction.labels:
                 try:
-                    db.add(MessageLabel(
-                        message_id=message_id,
-                        prompt_version=prompt_version,
-                        label=lbl.label,
-                        confidence=lbl.confidence,
-                    ))
-                    db.flush()
+                    with db.begin_nested():  # SAVEPOINT — rollback only this label on conflict
+                        db.add(MessageLabel(
+                            message_id=message_id,
+                            prompt_version=prompt_version,
+                            label=lbl.label,
+                            confidence=lbl.confidence,
+                        ))
                 except Exception:
-                    db.rollback()
+                    pass  # UniqueConstraint — label already recorded for this version
 
             for draft in extraction.reply_drafts:
                 db.add(ReplyDraft(

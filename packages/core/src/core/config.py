@@ -11,9 +11,14 @@ class Settings(BaseSettings):
         default="postgresql://clawdbot:clawdbot@localhost:5432/clawdbot"
     )
 
-    # LLM
+    # LLM — provider: "gemini" (free, default) or "anthropic"
+    llm_provider: str = Field(default="gemini")
+    gemini_api_key: str = Field(default="")
+    gemini_model: str = Field(default="gemini-2.0-flash")
     anthropic_api_key: str = Field(default="")
-    llm_model: str = Field(default="claude-sonnet-4-6")
+    anthropic_model: str = Field(default="claude-sonnet-4-6")
+    # legacy alias — resolved at runtime based on provider
+    llm_model: str = Field(default="")
     llm_mode: str = Field(default="enabled")          # enabled | disabled
     llm_prompt_version: str = Field(default="v1")
     llm_label_filter: list[str] = Field(default=["INBOX", "UNREAD"])

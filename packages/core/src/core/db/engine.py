@@ -5,6 +5,7 @@ from typing import Generator
 from core.config import get_settings
 
 _engine = None
+_SessionLocal = None
 
 
 def get_engine():
@@ -15,16 +16,16 @@ def get_engine():
     return _engine
 
 
-def _make_session_factory():
-    return sessionmaker(autocommit=False, autoflush=False)
+def _get_session_factory():
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    return _SessionLocal
 
 
 @contextmanager
 def get_db() -> Generator[Session, None, None]:
-    engine = get_engine()
-    SessionLocal = _make_session_factory()
-    SessionLocal.configure(bind=engine)
-    db = SessionLocal()
+    db = _get_session_factory()()
     try:
         yield db
         db.commit()
