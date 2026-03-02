@@ -80,3 +80,33 @@ def test_send_digest_long_message_chunks():
 
     assert result is True
     assert mock_send.call_count >= 2  # Should chunk into multiple messages
+
+
+def test_send_message_with_keyboard_includes_reply_markup():
+    """Verify reply_markup is sent in payload."""
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status.return_value = None
+
+    keyboard = [[
+        {"text": "✓ Accept", "callback_data": "accept:abc"},
+        {"text": "✗ Dismiss", "callback_data": "dismiss:abc"},
+    ]]
+
+    with patch("core.telegram_client.get_settings", return_value=_make_settings()), \
+         patch("httpx.post", return_value=mock_resp) as mock_post:
+        from core.telegram_client import send_message_with_keyboard
+        result = send_message_with_keyboard("New task", keyboard)
+
+    assert result is True
+    call_kwargs = mock_post.call_args[1]  # kwargs
+    payload = call_kwargs["json"]
+    assert "reply_markup" in payload
+    assert payload["reply_markup"]["inline_keyboard"] == keyboard
+
+
+def test_send_message_with_keyboard_disabled_returns_false():
+    from core.telegram_client import send_message_with_keyboard
+    with patch("core.telegram_client.get_settings",
+               return_value=_make_settings(enabled=False)):
+        result = send_message_with_keyboard("text", [[]])
+    assert result is False

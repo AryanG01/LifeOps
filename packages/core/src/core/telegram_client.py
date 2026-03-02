@@ -51,6 +51,49 @@ def send_message(text: str, parse_mode: str = "Markdown") -> bool:
         return False
 
 
+def send_message_with_keyboard(
+    text: str,
+    keyboard: list[list[dict]],
+    parse_mode: str = "Markdown",
+) -> bool:
+    """
+    Send a message with an inline keyboard.
+
+    keyboard format:
+        [[{"text": "✓ Accept", "callback_data": "accept:uuid"}, ...], ...]
+    Each inner list is one row of buttons.
+    Returns True on success, False on failure. Never raises.
+    """
+    settings = get_settings()
+    if not settings.telegram_enabled:
+        log.debug("telegram_disabled_skipping")
+        return False
+    if not settings.telegram_bot_token or not settings.telegram_chat_id:
+        log.warning("telegram_not_configured")
+        return False
+
+    url = _BASE.format(token=settings.telegram_bot_token)
+    payload = {
+        "chat_id": settings.telegram_chat_id,
+        "text": text,
+        "parse_mode": parse_mode,
+        "reply_markup": {"inline_keyboard": keyboard},
+    }
+
+    try:
+        response = httpx.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+        log.info("telegram_keyboard_sent", chat_id=settings.telegram_chat_id)
+        return True
+    except httpx.HTTPStatusError as exc:
+        log.error("telegram_http_error", status=exc.response.status_code,
+                  body=exc.response.text[:200])
+        return False
+    except Exception as exc:
+        log.error("telegram_error", error=str(exc))
+        return False
+
+
 def send_digest(content_md: str) -> bool:
     """Send a digest (Markdown) to Telegram, chunking if needed (4096 char limit)."""
     LIMIT = 4096
