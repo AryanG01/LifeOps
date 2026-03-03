@@ -1,0 +1,61 @@
+# Clawdbot — Fly.io configuration
+# Deploy: fly deploy
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "clawdbot"
+primary_region = "sin"   # Singapore — change to nearest: iad (US East), lhr (London), etc.
+
+[build]
+  # Build the worker Dockerfile from the project root
+  dockerfile = "apps/worker/Dockerfile"
+
+# Run two named processes from the same image.
+# Fly creates a separate machine for each process group.
+[processes]
+  worker = "python -m worker.main"
+  bot    = "python -m bot.main"
+
+# Release command: run migrations before the new version goes live.
+# Fly runs this in a temporary machine and only proceeds if exit code = 0.
+[deploy]
+  release_command = "python -m alembic -c infra/alembic.ini upgrade head"
+
+# Worker process: no public port needed (outbound-only)
+[[services]]
+  processes = ["worker"]
+  internal_port = 8001
+  protocol = "tcp"
+
+  [[services.tcp_checks]]
+    interval = "30s"
+    timeout  = "5s"
+
+# Bot process: no public port needed (long-polling outbound)
+[[services]]
+  processes = ["bot"]
+  internal_port = 8002
+  protocol = "tcp"
+
+  [[services.tcp_checks]]
+    interval = "30s"
+    timeout  = "5s"
+
+# Persistent volume for Gmail OAuth token + credentials
+[mounts]
+  source      = "clawdbot_config"
+  destination = "/root/.config/clawdbot"
+  processes   = ["worker", "bot"]
+
+# VM sizing — shared-cpu-1x (256 MB RAM) is enough for worker + bot
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory_mb = 512
+
+# Environment variables (non-secret defaults only — secrets go via `fly secrets set`)
+[env]
+  API_HOST       = "0.0.0.0"
+  API_PORT       = "8000"
+  LLM_PROVIDER   = "gemini"
+  LLM_MODE       = "enabled"
+  TELEGRAM_ENABLED = "true"
