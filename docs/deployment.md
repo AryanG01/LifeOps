@@ -285,6 +285,147 @@ cloudflared tunnel run clawdbot
 
 ---
 
+## Option D: Oracle Cloud Free Tier (Best free option — $0 forever)
+
+Oracle Cloud's **Always Free** tier includes ARM Ampere A1 VMs with **4 OCPUs + 24 GB RAM** at no cost, indefinitely. No expiry, no credits — just an account that requires a credit card at signup (never charged for Always Free resources).
+
+### Step 1: Create Oracle Cloud account
+
+1. Go to https://cloud.oracle.com/free and sign up
+2. Choose your **home region** closest to you (e.g. `ap-singapore-1`) — this cannot be changed later
+3. Verify your credit card (not charged for Always Free)
+
+### Step 2: Provision ARM VM
+
+In the Oracle Cloud console:
+
+1. **Compute → Instances → Create Instance**
+2. Name: `clawdbot`
+3. Image: **Ubuntu 22.04** (Canonical Ubuntu)
+4. Shape: **VM.Standard.A1.Flex** (Ampere — Always Free)
+   - OCPUs: `4`, Memory: `24 GB` (use the full free allocation)
+5. Networking: Create new VCN (defaults are fine)
+6. SSH keys: upload your `~/.ssh/id_rsa.pub` (or generate a new key pair and download it)
+7. Click **Create**
+
+Wait ~2 minutes for the instance to reach **RUNNING** state. Note the **Public IP**.
+
+### Step 3: Open ports in the firewall
+
+Oracle Cloud has two firewalls: the VCN Security List and the OS-level iptables.
+
+**VCN Security List** (Oracle console → Networking → Virtual Cloud Networks → your VCN → Security Lists → Default):
+
+Add ingress rules:
+| Source | Protocol | Port | Purpose |
+|--------|----------|------|---------|
+| 0.0.0.0/0 | TCP | 22 | SSH |
+| 0.0.0.0/0 | TCP | 8000 | Web dashboard (optional) |
+
+**OS iptables** (on the VM — Oracle Ubuntu blocks ports at the OS level by default):
+
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 8000 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+### Step 4: SSH in and install dependencies
+
+```bash
+ssh ubuntu@<your-public-ip>
+
+# Update and install Docker
+sudo apt update && sudo apt install -y git docker.io docker-compose-plugin python3.11 python3-pip
+sudo systemctl enable docker && sudo systemctl start docker
+sudo usermod -aG docker ubuntu   # allow docker without sudo
+newgrp docker                     # apply group change immediately
+```
+
+### Step 5: Clone and configure
+
+```bash
+git clone https://github.com/AryanG01/LifeOps.git
+cd LifeOps
+cp .env.example .env
+nano .env    # fill in: GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_ENABLED=true
+             # DATABASE_URL default (localhost:5432) works because DB runs in Docker on the same VM
+```
+
+### Step 6: Upload Gmail credentials
+
+From your **local machine**:
+
+```bash
+# Create the config dir on the VM first
+ssh ubuntu@<your-public-ip> "mkdir -p ~/.config/clawdbot"
+
+# Copy your locally-generated Gmail token and credentials
+scp ~/.config/clawdbot/gmail_token.json     ubuntu@<your-public-ip>:~/.config/clawdbot/
+scp ~/.config/clawdbot/gmail_credentials.json ubuntu@<your-public-ip>:~/.config/clawdbot/
+```
+
+> If you haven't generated these yet, run `./setup.sh && claw connect gmail` locally first, then copy them up.
+
+### Step 7: Start everything
+
+```bash
+# On the VM:
+cd ~/LifeOps/infra
+docker compose up -d
+```
+
+This starts: `db` → `migrate` (runs Alembic, exits 0) → `worker` + `bot` + `api` (all restart: unless-stopped).
+
+### Step 8: Verify
+
+```bash
+docker compose ps          # migrate = Exited(0), all others = running
+docker compose logs -f worker  # look for "scheduler started"
+docker compose logs -f bot     # look for "bot polling started"
+```
+
+Send `/status` to your Telegram bot — it should respond within seconds.
+
+### Step 9: Enable auto-restart on reboot
+
+Docker's `restart: unless-stopped` handles container restarts. To start Docker Compose on VM reboot:
+
+```bash
+# crontab -e
+@reboot sleep 30 && cd /home/ubuntu/LifeOps/infra && docker compose up -d
+```
+
+### Step 10: (Optional) Web dashboard via Cloudflare Tunnel
+
+Rather than exposing port 8000 directly, a Cloudflare Tunnel gives you HTTPS for free with no port forwarding.
+
+```bash
+# On the VM:
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 \
+    -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+cloudflared tunnel login
+cloudflared tunnel create clawdbot
+cloudflared tunnel route dns clawdbot clawdbot.yourdomain.com
+# Start as a service:
+cloudflared service install
+sudo systemctl start cloudflared
+```
+
+Then set `DASHBOARD_API_KEY` in `.env` to protect the dashboard.
+
+### Updating Clawdbot on Oracle Cloud
+
+```bash
+ssh ubuntu@<your-public-ip>
+cd ~/LifeOps
+git pull origin master
+cd infra
+docker compose build worker bot api
+docker compose up -d --no-deps worker bot api
+```
+
+---
+
 ## Updating Clawdbot
 
 ### Self-hosted VPS
@@ -323,6 +464,7 @@ docker compose run --rm migrate
 
 | Platform | DB | Compute | Est. monthly |
 |----------|----|---------|-------------|
+| **Oracle Cloud Free Tier** | Docker on VM (free) | 4 OCPU / 24 GB ARM VM (free forever) | **$0** |
 | Railway | Managed Postgres $5 | Worker+Bot ~$0–2 | ~$5–7 |
 | Fly.io | Postgres shared $0–3 | 2 processes shared VM ~$2 | ~$3–5 |
 | DigitalOcean Droplet | Docker on VPS | $4/mo Droplet | ~$4 |
