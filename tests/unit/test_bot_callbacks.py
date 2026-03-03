@@ -171,6 +171,7 @@ async def test_reply_send_callback_marks_sent():
     update.callback_query.edit_message_text.assert_called_once()
     text = update.callback_query.edit_message_text.call_args[0][0]
     assert "sent" in text.lower() or "✓" in text
+    assert mock_draft.status == "sent"
 
 
 @pytest.mark.asyncio
@@ -198,3 +199,4 @@ async def test_reply_skip_callback_marks_dismissed():
     update.callback_query.edit_message_text.assert_called_once()
     text = update.callback_query.edit_message_text.call_args[0][0]
     assert "skip" in text.lower() or "✗" in text
+    assert mock_draft.status == "dismissed"
