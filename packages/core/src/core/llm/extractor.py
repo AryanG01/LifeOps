@@ -368,6 +368,29 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
                 except Exception as exc:
                     log.warning("task_notify_lookup_failed", error=str(exc))
 
+        # Push reply draft notification (fail-soft)
+        if extraction.reply_drafts:
+            from core.reply_notify import send_reply_notification
+            for draft in extraction.reply_drafts:
+                try:
+                    with get_db() as db:
+                        from core.db.models import ReplyDraft as ReplyDraftModel
+                        saved = db.query(ReplyDraftModel).filter_by(
+                            message_id=message_id,
+                            tone=draft.tone,
+                        ).order_by(ReplyDraftModel.created_at.desc()).first()
+                        saved_id = str(saved.id) if saved else None
+                    if saved_id:
+                        send_reply_notification(
+                            draft_id=saved_id,
+                            message_id=message_id,
+                            sender=msg_data["sender"],
+                            subject=msg_data["title"],
+                            preview=draft.draft_text,
+                        )
+                except Exception as exc:
+                    log.warning("reply_notify_lookup_failed", error=str(exc))
+
     return not failed
 
 
