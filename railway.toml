@@ -1,0 +1,29 @@
+# Clawdbot — Railway configuration
+# Deploy: railway up
+# Docs: https://docs.railway.app/reference/config-as-code
+
+[build]
+  builder = "DOCKERFILE"
+
+# ---- Worker service --------------------------------------------------------
+# In Railway, create a second service manually for the bot (Railway does not
+# natively support multi-process in a single service). Point the bot service
+# to the same repo with startCommand = "python -m bot.main".
+
+[deploy]
+  startCommand   = "python -m worker.main"
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 5
+
+  # Run migrations as a pre-deploy command.
+  # Railway executes this before starting the main process on each deploy.
+  # NOTE: Railway calls this the "pre-deploy command". Set it in the Railway
+  # dashboard under Service → Settings → Deploy → Pre-deploy command:
+  #   python -m alembic -c infra/alembic.ini upgrade head
+
+# ---- Health check ----------------------------------------------------------
+# Railway uses HTTP health checks. The worker exposes no HTTP port by default,
+# so disable the health check here; Railway will use the process restart policy.
+
+[healthcheck]
+  disabled = true

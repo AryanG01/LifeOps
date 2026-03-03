@@ -15,7 +15,7 @@
 - [x] Task 7: Error resilience — circuit breakers, graceful degradation, no crash loops ✅ DONE
 - [ ] Task 8: Multi-user support — each user has their own config/credentials
 - [ ] Task 9: Web dashboard (FastAPI + lightweight frontend)
-- [ ] Task 10: Deployment guide (Railway / Fly.io / self-hosted VPS)
+- [x] Task 10: Deployment guide (Railway / Fly.io / self-hosted VPS) ✅ DONE
 
 ---
 
