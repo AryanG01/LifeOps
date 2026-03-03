@@ -10,10 +10,9 @@ def _make_settings(enabled=True):
 
 
 def test_reply_notification_sends_with_keyboard():
-    """Send notification → uses send_message_with_keyboard with Send + Skip buttons."""
+    """Send notification → uses send_message_with_keyboard, text contains sender + subject + preview."""
     with patch("core.reply_notify.get_settings", return_value=_make_settings()), \
-         patch("core.reply_notify.send_message_with_keyboard", return_value=True) as mock_kb, \
-         patch("core.reply_notify.send_message") as mock_plain:
+         patch("core.reply_notify.send_message_with_keyboard", return_value=True) as mock_kb:
         result = send_reply_notification(
             draft_id="draft-001",
             message_id="msg-001",
@@ -24,7 +23,6 @@ def test_reply_notification_sends_with_keyboard():
 
     assert result is True
     mock_kb.assert_called_once()
-    mock_plain.assert_not_called()
     text = mock_kb.call_args[0][0]
     assert "alice@example.com" in text
     assert "Project meeting" in text

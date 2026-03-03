@@ -10,7 +10,7 @@ from __future__ import annotations
 import structlog
 
 from core.config import get_settings
-from core.telegram_client import send_message, send_message_with_keyboard
+from core.telegram_client import send_message_with_keyboard
 
 log = structlog.get_logger()
 
