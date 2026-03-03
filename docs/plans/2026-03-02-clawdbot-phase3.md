@@ -14,7 +14,7 @@
 - [x] Task 6: System health alerts via Telegram (LLM credits, Gmail auth expiry, errors) ✅ DONE
 - [x] Task 7: Error resilience — circuit breakers, graceful degradation, no crash loops ✅ DONE
 - [ ] Task 8: Multi-user support — each user has their own config/credentials
-- [ ] Task 9: Web dashboard (FastAPI + lightweight frontend)
+- [x] Task 9: Web dashboard (FastAPI + lightweight frontend) ✅ DONE
 - [x] Task 10: Deployment guide (Railway / Fly.io / self-hosted VPS) ✅ DONE
 
 ---

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clawdbot {% block title %}{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-mono">
+  <nav class="flex items-center gap-6 px-8 py-4 bg-gray-900 border-b border-gray-800">
+    <span class="text-indigo-400 font-bold text-lg">Clawdbot</span>
+    <a href="/" class="hover:text-indigo-300">Dashboard</a>
+    <a href="/tasks" class="hover:text-indigo-300">Tasks</a>
+    <a href="/inbox" class="hover:text-indigo-300">Inbox</a>
+  </nav>
+  <main class="px-8 py-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
