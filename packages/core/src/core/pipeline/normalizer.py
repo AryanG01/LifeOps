@@ -128,6 +128,10 @@ def normalize_raw_event(raw_event_id: str) -> str | None:
                 raw_event_id=raw_event_id,
                 is_canvas=canvas.is_canvas,
             )
+            # Immediate Canvas push (fail-soft — canvas is a plain dataclass, no ORM)
+            if canvas.is_canvas:
+                from core.canvas_notify import send_canvas_notification
+                send_canvas_notification(canvas, msg_id)
             return msg_id
         except Exception as exc:
             db.rollback()
