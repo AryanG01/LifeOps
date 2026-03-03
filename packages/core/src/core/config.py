@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     default_user_id: str = Field(
         default="00000000-0000-0000-0000-000000000001"
     )
+    user_display_name: str = Field(default="Clawdbot User")
+    user_email: str = Field(default="")
+
+    # Web dashboard
+    dashboard_api_key: str = Field(default="")
 
     # Microsoft Graph / Outlook
     outlook_client_id: str = Field(default="")
