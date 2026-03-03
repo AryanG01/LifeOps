@@ -7,10 +7,14 @@ Fail-soft: never raises, never blocks normalization.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
 
-from connectors.canvas.parser import CanvasParseResult
 from core.config import get_settings
+
+if TYPE_CHECKING:
+    from connectors.canvas.parser import CanvasParseResult
 from core.telegram_client import send_message, send_message_with_keyboard
 
 log = structlog.get_logger()
@@ -53,5 +57,5 @@ def send_canvas_notification(canvas: CanvasParseResult, msg_id: str) -> bool:
             return send_message_with_keyboard(text, keyboard)
         return send_message(text)
     except Exception as exc:
-        log.error("canvas_notify_failed", msg_id=msg_id, error=str(exc))
+        log.error("canvas_notify_failed", msg_id=msg_id, error=str(exc), exc_info=True)
         return False

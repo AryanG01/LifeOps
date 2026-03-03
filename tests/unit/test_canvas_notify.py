@@ -1,7 +1,7 @@
 """Unit tests for canvas_notify — mock telegram_client."""
-import pytest
 from unittest.mock import patch, MagicMock
 from connectors.canvas.parser import CanvasParseResult
+from core.canvas_notify import send_canvas_notification
 
 
 def _canvas(
@@ -33,7 +33,6 @@ def test_canvas_notification_assignment_plain():
     with patch("core.canvas_notify.get_settings", return_value=_make_settings()), \
          patch("core.canvas_notify.send_message", return_value=True) as mock_send, \
          patch("core.canvas_notify.send_message_with_keyboard") as mock_kb:
-        from core.canvas_notify import send_canvas_notification
         result = send_canvas_notification(_canvas(), "msg-1")
 
     assert result is True
@@ -51,7 +50,6 @@ def test_canvas_notification_with_url():
     with patch("core.canvas_notify.get_settings", return_value=_make_settings()), \
          patch("core.canvas_notify.send_message", return_value=True) as mock_send, \
          patch("core.canvas_notify.send_message_with_keyboard", return_value=True) as mock_kb:
-        from core.canvas_notify import send_canvas_notification
         result = send_canvas_notification(_canvas(canvas_url=url), "msg-1")
 
     assert result is True
@@ -67,7 +65,6 @@ def test_canvas_notification_disabled():
     """telegram_enabled=False → returns False, nothing sent."""
     with patch("core.canvas_notify.get_settings", return_value=_make_settings(enabled=False)), \
          patch("core.canvas_notify.send_message") as mock_send:
-        from core.canvas_notify import send_canvas_notification
         result = send_canvas_notification(_canvas(), "msg-1")
 
     assert result is False
@@ -78,7 +75,6 @@ def test_canvas_notification_announcement():
     """Announcement type uses correct emoji/label."""
     with patch("core.canvas_notify.get_settings", return_value=_make_settings()), \
          patch("core.canvas_notify.send_message", return_value=True) as mock_send:
-        from core.canvas_notify import send_canvas_notification
         result = send_canvas_notification(_canvas(canvas_type="announcement", due_at_raw=None), "msg-1")
 
     assert result is True
