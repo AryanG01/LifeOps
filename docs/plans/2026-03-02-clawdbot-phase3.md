@@ -6,14 +6,14 @@
 
 ## PROGRESS TRACKER
 
-- [ ] Task 1: One-command setup (`setup.sh` + interactive wizard)
+- [x] Task 1: One-command setup (`setup.sh` + interactive wizard) ✅ DONE
 - [x] Task 2: Docker Compose full stack (worker + API + DB + migrations auto-run) ✅ DONE
 - [x] Task 3: Telegram interactive bot — inline keyboards for task approval/dismissal ✅ DONE
 - [x] Task 4: Telegram email reply workflow — full thread → LLM draft → approve → send ✅ DONE
 - [x] Task 5: Telegram Canvas/assignment notifications (push when new deadline detected) ✅ DONE
 - [x] Task 6: System health alerts via Telegram (LLM credits, Gmail auth expiry, errors) ✅ DONE
 - [x] Task 7: Error resilience — circuit breakers, graceful degradation, no crash loops ✅ DONE
-- [ ] Task 8: Multi-user support — each user has their own config/credentials
+- [x] Task 8: Multi-user support — each user has their own config/credentials ✅ DONE
 - [x] Task 9: Web dashboard (FastAPI + lightweight frontend) ✅ DONE
 - [x] Task 10: Deployment guide (Railway / Fly.io / self-hosted VPS) ✅ DONE
 
