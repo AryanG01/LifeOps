@@ -9,7 +9,7 @@
 - [ ] Task 1: One-command setup (`setup.sh` + interactive wizard)
 - [ ] Task 2: Docker Compose full stack (worker + API + DB + migrations auto-run)
 - [x] Task 3: Telegram interactive bot — inline keyboards for task approval/dismissal ✅ DONE
-- [ ] Task 4: Telegram email reply workflow — full thread → LLM draft → approve → send
+- [x] Task 4: Telegram email reply workflow — full thread → LLM draft → approve → send ✅ DONE
 - [x] Task 5: Telegram Canvas/assignment notifications (push when new deadline detected) ✅ DONE
 - [x] Task 6: System health alerts via Telegram (LLM credits, Gmail auth expiry, errors) ✅ DONE
 - [x] Task 7: Error resilience — circuit breakers, graceful degradation, no crash loops ✅ DONE

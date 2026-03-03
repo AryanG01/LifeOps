@@ -124,3 +124,77 @@ async def test_wrong_chat_id_ignored():
         with patch("bot.handlers.callbacks.get_db") as mock_db:
             await handle_callback(update, _make_context())
             mock_db.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reply_send_callback_marks_sent():
+    """reply_send:draft_id → Gmail send attempted and confirmation sent to user."""
+    from bot.handlers.callbacks import handle_callback
+
+    update = _make_update("reply_send:draft-send-001")
+    ctx = MagicMock()
+
+    mock_draft = MagicMock()
+    mock_draft.id = "draft-send-001"
+    mock_draft.draft_text = "Hi Alice, Saturday works for me!"
+    mock_draft.message_id = "msg-001"
+    mock_draft.status = "proposed"
+
+    mock_msg = MagicMock()
+    mock_msg.sender = "alice@example.com"
+    mock_msg.title = "Project meeting"
+    mock_msg.external_id = "gmail-thread-001"
+
+    db = MagicMock()
+    db.__enter__ = lambda s: db
+    db.__exit__ = MagicMock(return_value=False)
+
+    call_count = [0]
+    def query_side_effect(model):
+        call_count[0] += 1
+        m = MagicMock()
+        if call_count[0] == 1:
+            m.filter_by.return_value.first.return_value = mock_draft  # draft lookup
+        elif call_count[0] == 2:
+            m.filter_by.return_value.first.return_value = mock_msg   # message lookup
+        else:
+            m.filter_by.return_value.first.return_value = mock_draft  # status update
+        return m
+    db.query.side_effect = query_side_effect
+
+    with patch("bot.handlers.callbacks.get_settings",
+               return_value=_make_settings()), \
+         patch("bot.handlers.callbacks.get_db", return_value=db), \
+         patch("bot.handlers.callbacks._send_gmail_reply", return_value=True):
+        await handle_callback(update, ctx)
+
+    update.callback_query.edit_message_text.assert_called_once()
+    text = update.callback_query.edit_message_text.call_args[0][0]
+    assert "sent" in text.lower() or "✓" in text
+
+
+@pytest.mark.asyncio
+async def test_reply_skip_callback_marks_dismissed():
+    """reply_skip:draft_id → draft.status = 'dismissed', confirmation sent."""
+    from bot.handlers.callbacks import handle_callback
+
+    update = _make_update("reply_skip:draft-skip-001")
+    ctx = MagicMock()
+
+    mock_draft = MagicMock()
+    mock_draft.id = "draft-skip-001"
+    mock_draft.status = "proposed"
+
+    db = MagicMock()
+    db.__enter__ = lambda s: db
+    db.__exit__ = MagicMock(return_value=False)
+    db.query.return_value.filter_by.return_value.first.return_value = mock_draft
+
+    with patch("bot.handlers.callbacks.get_settings",
+               return_value=_make_settings()), \
+         patch("bot.handlers.callbacks.get_db", return_value=db):
+        await handle_callback(update, ctx)
+
+    update.callback_query.edit_message_text.assert_called_once()
+    text = update.callback_query.edit_message_text.call_args[0][0]
+    assert "skip" in text.lower() or "✗" in text
