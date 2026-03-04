@@ -28,7 +28,10 @@ def connect_gmail(
         rprint("Download OAuth credentials from Google Cloud Console.")
         raise typer.Exit(1)
 
-    rprint("Opening browser for Gmail OAuth...")
+    rprint("[bold]Starting Gmail OAuth (headless mode)...[/bold]")
+    rprint("[yellow]First, open a NEW terminal on your local machine and run:[/yellow]")
+    rprint(f"[cyan]  ssh -L 8080:localhost:8080 {__import__('os').environ.get('USER', 'user')}@<VM-IP>[/cyan]")
+    rprint("[dim]Then a URL will appear below — copy it into your local browser.[/dim]\n")
     run_oauth_flow(creds_path)
     rprint("[green]✓ Gmail connected[/green]")
 

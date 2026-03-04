@@ -49,10 +49,10 @@ def get_credentials() -> Credentials:
 
 
 def run_oauth_flow(credentials_file: str) -> Credentials:
-    """Run OAuth installed-app flow. Opens system browser, listens on random local port."""
+    """Run OAuth flow. Uses fixed port 8080 with no browser (works headless via SSH tunnel)."""
     creds_path = str(Path(credentials_file).expanduser())
     flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-    creds = flow.run_local_server(port=0, open_browser=True)
+    creds = flow.run_local_server(port=8080, open_browser=False)
     _persist(creds)
     log.info("gmail_oauth_complete")
     return creds
