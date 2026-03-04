@@ -10,3 +10,6 @@ venv/
 dist/
 build/
 .worktrees/
+
+# Gmail credentials (never commit)
+credentials/
