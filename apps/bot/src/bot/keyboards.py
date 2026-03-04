@@ -25,8 +25,3 @@ def build_task_keyboard(task_id: str, status: str = "proposed") -> list[list[Inl
         ])
     rows.append([InlineKeyboardButton("✅ Done", callback_data=f"done:{task_id}")])
     return rows
-
-
-def build_task_keyboard_markup(task_id: str) -> InlineKeyboardMarkup:
-    """Convenience wrapper returning InlineKeyboardMarkup directly."""
-    return InlineKeyboardMarkup(build_task_keyboard(task_id))

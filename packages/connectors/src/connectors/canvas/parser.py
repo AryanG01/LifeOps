@@ -60,7 +60,6 @@ CANVAS_URL_RE = re.compile(
 class CanvasParseResult:
     is_canvas: bool
     course_code: Optional[str]
-    course_name: Optional[str]
     assignment_title: Optional[str]
     due_at_raw: Optional[str]
     canvas_url: Optional[str]
@@ -88,7 +87,6 @@ def parse_canvas_email(sender: str, subject: str, body: str) -> CanvasParseResul
         return CanvasParseResult(
             is_canvas=False,
             course_code=None,
-            course_name=None,
             assignment_title=None,
             due_at_raw=None,
             canvas_url=None,
@@ -147,7 +145,6 @@ def parse_canvas_email(sender: str, subject: str, body: str) -> CanvasParseResul
     return CanvasParseResult(
         is_canvas=True,
         course_code=course_code,
-        course_name=None,  # Not reliably present in email
         assignment_title=assignment_title,
         due_at_raw=due_at_raw,
         canvas_url=canvas_url,

@@ -1,7 +1,8 @@
 """
 LLM extraction pipeline.
-Calls Anthropic API, validates with Pydantic ExtractionResult (extra=forbid),
-retries once on invalid JSON, records LLMRun audit row per attempt.
+Calls configured LLM provider (Gemini or Anthropic), validates with Pydantic
+ExtractionResult (extra=forbid), retries once on invalid JSON, records LLMRun
+audit row per attempt.
 """
 import json
 import time
@@ -138,7 +139,6 @@ def _record_triage_skip(db, message_id: str, prompt_version: str) -> None:
         urgency=0.0,
         extraction_failed=False,
     ))
-    db.commit()
 
 
 def _validate(raw_json: str) -> ExtractionResult:
@@ -335,7 +335,6 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
                     status="proposed",
                 ))
 
-        db.commit()
         log.info(
             "extraction_saved",
             message_id=message_id,
@@ -374,11 +373,10 @@ def extract_message(message_id: str, prompt_version: str = "v1") -> bool:
             for draft in extraction.reply_drafts:
                 try:
                     with get_db() as db:
-                        from core.db.models import ReplyDraft as ReplyDraftModel
-                        saved = db.query(ReplyDraftModel).filter_by(
+                        saved = db.query(ReplyDraft).filter_by(
                             message_id=message_id,
                             tone=draft.tone,
-                        ).order_by(ReplyDraftModel.created_at.desc()).first()
+                        ).order_by(ReplyDraft.created_at.desc()).first()
                         saved_id = str(saved.id) if saved else None
                     if saved_id:
                         send_reply_notification(

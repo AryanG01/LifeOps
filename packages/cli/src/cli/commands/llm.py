@@ -18,7 +18,7 @@ app = typer.Typer()
 console = Console()
 
 PROVIDERS = {"gemini", "anthropic"}
-DOTENV_PATH = Path(".env")
+DOTENV_PATH = Path(__file__).resolve().parents[5] / ".env"
 
 
 # ---------------------------------------------------------------------------

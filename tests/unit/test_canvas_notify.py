@@ -14,7 +14,6 @@ def _canvas(
     return CanvasParseResult(
         is_canvas=True,
         course_code=course_code,
-        course_name=None,
         assignment_title=assignment_title,
         due_at_raw=due_at_raw,
         canvas_url=canvas_url,

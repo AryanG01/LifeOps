@@ -97,7 +97,6 @@ def connect_gcal():
     rprint("[dim]Re-authenticating Gmail OAuth to add calendar.readonly scope.[/dim]\n")
 
     credentials = "~/.config/clawdbot/gmail_credentials.json"
-    from pathlib import Path
     creds_path = str(Path(credentials).expanduser())
     if not Path(creds_path).exists():
         rprint(f"[red]Credentials file not found: {creds_path}[/red]")

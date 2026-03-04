@@ -4,13 +4,14 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../apps/bot/src'))
 
 
-def test_build_task_keyboard_returns_three_buttons():
-    """Keyboard for a task has exactly 3 buttons in one row."""
+def test_build_task_keyboard_returns_two_rows():
+    """Proposed task keyboard has 2 rows: action row + Done row."""
     from bot.keyboards import build_task_keyboard
 
-    kb = build_task_keyboard("task-uuid-123")
-    assert len(kb) == 1  # one row
-    assert len(kb[0]) == 3  # three buttons
+    kb = build_task_keyboard("task-uuid-123", status="proposed")
+    assert len(kb) == 2  # action row + Done row
+    assert len(kb[0]) == 3  # Accept, Dismiss, Snooze
+    assert len(kb[1]) == 1  # Done
 
 
 def test_build_task_keyboard_callback_data_format():

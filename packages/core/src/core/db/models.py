@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Double, Float,
-    ForeignKey, Index, Integer, JSON, String, Text,
+    Boolean, Column, Date, DateTime, Float,
+    ForeignKey, Integer, JSON, String, Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,7 +24,7 @@ class User(Base):
     email = Column(Text, nullable=False, unique=True)
     display_name = Column(Text)
     timezone = Column(Text, nullable=False, default="Asia/Singapore")
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
 
 class Source(Base):
@@ -37,7 +37,7 @@ class Source(Base):
     config_json = Column(JSON, nullable=False, default=dict)
     last_synced_at = Column(DateTime(timezone=True))
     sync_cursor = Column(Text)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "source_type", "display_name"),)
 
@@ -50,7 +50,7 @@ class RawEvent(Base):
     source_id = Column(UUID(as_uuid=False), ForeignKey("sources.id", ondelete="CASCADE"), nullable=False)
     external_id = Column(Text)
     payload_json = Column(JSON, nullable=False)
-    received_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    received_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
     processed_at = Column(DateTime(timezone=True))
     processing_error = Column(Text)
 
@@ -70,7 +70,7 @@ class Message(Base):
     body_preview = Column(Text, nullable=False, default="")
     body_full = Column(Text)
     message_ts = Column(DateTime(timezone=True), nullable=False)
-    ingested_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    ingested_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
     dedup_hash = Column(Text, nullable=False)
     is_canvas = Column(Boolean, nullable=False, default=False)
     extra_json = Column(JSON, nullable=False, default=dict)
@@ -88,7 +88,7 @@ class MessageSummary(Base):
     summary_long = Column(Text)
     urgency = Column(Float, nullable=False, default=0.5)
     extraction_failed = Column(Boolean, nullable=False, default=False)
-    extracted_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    extracted_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("message_id", "prompt_version"),)
 
@@ -114,7 +114,7 @@ class ReplyDraft(Base):
     tone = Column(Text, nullable=False)
     draft_text = Column(Text, nullable=False)
     status = Column(Text, nullable=False, default="proposed")
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
 
 class LLMRun(Base):
@@ -130,7 +130,7 @@ class LLMRun(Base):
     validation_passed = Column(Boolean, nullable=False)
     validation_error = Column(Text)
     attempt = Column(Integer, nullable=False, default=1)
-    ran_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    ran_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
 
 class ActionItem(Base):
@@ -145,8 +145,8 @@ class ActionItem(Base):
     priority = Column(Integer, nullable=False, default=50)
     confidence = Column(Float, nullable=False, default=0.5)
     status = Column(Text, nullable=False, default="proposed")
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
 
 class Reminder(Base):
@@ -159,7 +159,7 @@ class Reminder(Base):
     channel = Column(Text, nullable=False, default="cli")
     status = Column(Text, nullable=False, default="pending")
     sent_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("action_item_id", "remind_at", "channel"),)
 
@@ -175,7 +175,7 @@ class PVIDailyFeature(Base):
     inbox_unread = Column(Integer, nullable=False, default=0)
     incoming_24h = Column(Integer, nullable=False, default=0)
     calendar_minutes = Column(Integer, nullable=False, default=0)
-    computed_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    computed_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "date"),)
 
@@ -189,7 +189,7 @@ class PVIDailyScore(Base):
     score = Column(Integer, nullable=False)
     regime = Column(Text, nullable=False)
     explanation = Column(Text, nullable=False)
-    computed_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    computed_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "date"),)
 
@@ -205,7 +205,7 @@ class Policy(Base):
     escalation_level = Column(Text, nullable=False, default="standard")
     reminder_cadence = Column(Text, nullable=False, default="standard")
     auto_activate = Column(Boolean, nullable=False, default=False)
-    computed_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    computed_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "date"),)
 
@@ -218,7 +218,7 @@ class Digest(Base):
     date = Column(Date, nullable=False)
     content_md = Column(Text, nullable=False)
     regime = Column(Text, nullable=False, default="normal")
-    generated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    generated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "date"),)
 
@@ -237,7 +237,7 @@ class CalendarEvent(Base):
     attendees_json = Column(JSON, nullable=False, default=list)
     description = Column(Text)
     is_all_day = Column(Boolean, nullable=False, default=False)
-    ingested_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    ingested_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "external_id"),)
 
@@ -247,7 +247,7 @@ class FocusSession(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(tz=timezone.utc))
     ends_at = Column(DateTime(timezone=True), nullable=False)
     ended_early_at = Column(DateTime(timezone=True))
     is_active = Column(Boolean, nullable=False, default=True)

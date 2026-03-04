@@ -73,4 +73,4 @@ def test_accept_task_sets_status():
         client = TestClient(app)
         resp = client.post("/api/tasks/task-uuid-1/accept")
         assert resp.status_code == 200
-        assert mock_item.status == "accepted"
+        assert mock_item.status == "active"

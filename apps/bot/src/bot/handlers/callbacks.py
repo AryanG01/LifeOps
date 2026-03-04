@@ -137,7 +137,7 @@ async def _done(query, task_id: str) -> None:
                 await query.edit_message_text("⚠️ Task not found.")
                 return
             title = task.title
-            task.status = "completed"
+            task.status = "done"
             task.updated_at = now
         log.info("task_completed_via_bot", task_id=task_id)
         safe_title = escape_markdown(title, version=2)

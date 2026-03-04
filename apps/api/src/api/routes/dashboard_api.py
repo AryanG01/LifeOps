@@ -108,7 +108,7 @@ def accept_task(task_id: str) -> str:
     with get_db() as db:
         item = db.query(ActionItem).filter(ActionItem.id == task_id).first()
         if item:
-            item.status = "accepted"
+            item.status = "active"
             item.updated_at = datetime.now(timezone.utc)
     return f'<tr id="task-{task_id}" class="opacity-40 text-gray-500"><td colspan="4">Accepted</td></tr>'
 
