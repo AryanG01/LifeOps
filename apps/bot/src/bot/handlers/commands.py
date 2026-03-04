@@ -28,11 +28,22 @@ from bot.keyboards import build_task_keyboard
 
 log = structlog.get_logger()
 
+# State constants for /newtask ConversationHandler
+NEWTASK_TITLE, NEWTASK_DUE = range(2)
+
 
 def _guard(update: Update) -> bool:
     """Return True if this chat is authorized. False = ignore."""
     settings = get_settings()
     return str(update.effective_chat.id) == str(settings.telegram_chat_id)
+
+
+def _priority_label(priority: int) -> str:
+    if priority >= 70:
+        return "🔴 High"
+    elif priority >= 40:
+        return "🟡 Medium"
+    return "🟢 Low"
 
 
 async def handle_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -41,6 +52,7 @@ async def handle_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     settings = get_settings()
+    now = datetime.now(timezone.utc)
     with get_db() as db:
         tasks = (
             db.query(ActionItem)
@@ -52,14 +64,19 @@ async def handle_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             .limit(10)
             .all()
         )
-        # Extract all data inside the session
         task_data = [(str(t.id), t.title, t.priority, t.status, t.due_at) for t in tasks]
 
     if not task_data:
         await update.message.reply_text("No open tasks.")
         return
 
-    settings = get_settings()
+    count = len(task_data)
+    label = "task" if count == 1 else "tasks"
+    await update.message.reply_text(
+        f"*You have {count} open {label}:*",
+        parse_mode="MarkdownV2",
+    )
+
     tz_name = settings.user_timezone or "Asia/Singapore"
     try:
         import zoneinfo
@@ -73,8 +90,11 @@ async def handle_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if due_at:
             local_due = due_at.astimezone(user_tz) if user_tz else due_at
             due_str = local_due.strftime("%a %d %b, %H:%M")
-            lines.append(f"⏰ Due: {escape_markdown(due_str, version=2)}")
-        lines.append(f"Priority: {priority}")
+            if due_at < now:
+                lines.append(f"⚠️ OVERDUE \\(was {escape_markdown(due_str, version=2)}\\)")
+            else:
+                lines.append(f"⏰ Due: {escape_markdown(due_str, version=2)}")
+        lines.append(escape_markdown(_priority_label(priority), version=2))
         await update.message.reply_text(
             "\n".join(lines),
             parse_mode="MarkdownV2",
@@ -224,23 +244,11 @@ async def handle_focus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
-async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Create a task manually. Usage: /newtask Buy groceries by tomorrow 6pm"""
-    if not _guard(update):
-        return
-
-    text = " ".join(context.args).strip() if context.args else ""
-    if not text:
-        await update.message.reply_text(
-            "Usage: `/newtask <title>`\nExample: `/newtask Submit CS2103 report by Friday 5pm`",
-            parse_mode="MarkdownV2",
-        )
-        return
-
-    # Try to parse a due date and extract a clean title
+async def _create_task_and_reply(update: Update, text: str) -> None:
+    """Parse text for a due date, create ActionItem, and send confirmation."""
+    settings = get_settings()
     due_at = None
     clean_title = text
-    settings = get_settings()
     try:
         import re
         from dateparser.search import search_dates
@@ -251,7 +259,6 @@ async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         if results:
             date_str, due_at = results[-1]
-            # Strip "by/due/on/at <date_str>" or just "<date_str>" from title
             clean_title = re.sub(
                 rf'\s*(by|due|on|at)\s+{re.escape(date_str)}|\s*{re.escape(date_str)}',
                 "", text, flags=re.IGNORECASE,
@@ -303,6 +310,63 @@ async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id, "active")),
     )
     log.info("task_created_manually", task_id=task_id, title=task_title, due_at=str(due_at))
+
+
+async def handle_newtask_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Entry point for /newtask. Creates task immediately if args given, else starts conversation."""
+    from telegram.ext import ConversationHandler
+    if not _guard(update):
+        return ConversationHandler.END
+
+    text = " ".join(context.args).strip() if context.args else ""
+    if text:
+        await _create_task_and_reply(update, text)
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        "What's the task? \\(or /cancel to stop\\)", parse_mode="MarkdownV2"
+    )
+    return NEWTASK_TITLE
+
+
+async def handle_newtask_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Receive task title, prompt for due date."""
+    from telegram.ext import ConversationHandler
+    title = update.message.text.strip()
+    if not title:
+        await update.message.reply_text("Please enter a task title, or /cancel to stop\\.", parse_mode="MarkdownV2")
+        return NEWTASK_TITLE
+
+    context.user_data["newtask_title"] = title
+    await update.message.reply_text(
+        "When is it due? \\(e\\.g\\. *tomorrow 6pm*, *Friday midnight*, or *skip*\\)",
+        parse_mode="MarkdownV2",
+    )
+    return NEWTASK_DUE
+
+
+async def handle_newtask_due(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Receive due date (or 'skip'), create the task."""
+    from telegram.ext import ConversationHandler
+    due_text = update.message.text.strip()
+    title = context.user_data.pop("newtask_title", "")
+    if not title:
+        await update.message.reply_text(
+            "Something went wrong\\. Please try /newtask again\\.", parse_mode="MarkdownV2"
+        )
+        return ConversationHandler.END
+
+    full_text = f"{title} by {due_text}" if due_text.lower() != "skip" else title
+    await _create_task_and_reply(update, full_text)
+    return ConversationHandler.END
+
+
+async def handle_newtask_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancel the /newtask conversation."""
+    from telegram.ext import ConversationHandler
+    context.user_data.pop("newtask_title", None)
+    await update.message.reply_text("Task creation cancelled\\.", parse_mode="MarkdownV2")
+    return ConversationHandler.END
 
 
 async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

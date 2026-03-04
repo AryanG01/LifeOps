@@ -11,10 +11,14 @@ Runs long-polling (no webhook needed for personal use).
 Uses python-telegram-bot v20+ async Application.
 """
 import structlog
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler,
+    ConversationHandler, MessageHandler, filters,
+)
 
 from core.config import get_settings
 from bot.handlers import commands, callbacks
+from bot.handlers.commands import NEWTASK_TITLE, NEWTASK_DUE
 
 log = structlog.get_logger()
 
@@ -36,7 +40,16 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("digest", commands.handle_digest))
     app.add_handler(CommandHandler("pvi",    commands.handle_pvi))
     app.add_handler(CommandHandler("focus",  commands.handle_focus))
-    app.add_handler(CommandHandler("newtask", commands.handle_newtask))
+    newtask_conv = ConversationHandler(
+        entry_points=[CommandHandler("newtask", commands.handle_newtask_start)],
+        states={
+            NEWTASK_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, commands.handle_newtask_title)],
+            NEWTASK_DUE:   [MessageHandler(filters.TEXT & ~filters.COMMAND, commands.handle_newtask_due)],
+        },
+        fallbacks=[CommandHandler("cancel", commands.handle_newtask_cancel)],
+        conversation_timeout=120,
+    )
+    app.add_handler(newtask_conv)
     app.add_handler(CommandHandler("status", commands.handle_status))
 
     # Register callback handler (inline button taps)
