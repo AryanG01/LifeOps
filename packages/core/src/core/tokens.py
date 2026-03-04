@@ -24,27 +24,31 @@ def store_token(service: str, username: str, token_data: dict) -> None:
     """Store token data securely. NEVER logs token values."""
     serialized = json.dumps(token_data)
     if _KEYRING_AVAILABLE:
-        keyring.set_password(service, username, serialized)
-        log.info("token_stored", service=service, username=username, backend="keyring")
-    else:
-        path = _fallback_path(service, username)
-        path.write_text(serialized)
-        path.chmod(0o600)
-        log.info("token_stored", service=service, username=username, backend="file")
+        try:
+            keyring.set_password(service, username, serialized)
+            log.info("token_stored", service=service, username=username, backend="keyring")
+            return
+        except Exception:
+            pass
+    path = _fallback_path(service, username)
+    path.write_text(serialized)
+    path.chmod(0o600)
+    log.info("token_stored", service=service, username=username, backend="file")
 
 
 def get_token(service: str, username: str) -> dict | None:
     """Retrieve token data. Returns None if not found. NEVER logs token values."""
     if _KEYRING_AVAILABLE:
-        value = keyring.get_password(service, username)
-        if value:
-            return json.loads(value)
-        return None
-    else:
-        path = _fallback_path(service, username)
-        if path.exists():
-            return json.loads(path.read_text())
-        return None
+        try:
+            value = keyring.get_password(service, username)
+            if value:
+                return json.loads(value)
+        except Exception:
+            pass
+    path = _fallback_path(service, username)
+    if path.exists():
+        return json.loads(path.read_text())
+    return None
 
 
 def delete_token(service: str, username: str) -> None:
@@ -55,8 +59,7 @@ def delete_token(service: str, username: str) -> None:
             log.info("token_deleted", service=service, username=username, backend="keyring")
         except Exception:
             pass
-    else:
-        path = _fallback_path(service, username)
-        if path.exists():
-            path.unlink()
-            log.info("token_deleted", service=service, username=username, backend="file")
+    path = _fallback_path(service, username)
+    if path.exists():
+        path.unlink()
+        log.info("token_deleted", service=service, username=username, backend="file")
