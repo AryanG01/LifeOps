@@ -53,18 +53,32 @@ async def handle_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             .all()
         )
         # Extract all data inside the session
-        task_data = [(str(t.id), t.title, t.priority) for t in tasks]
+        task_data = [(str(t.id), t.title, t.priority, t.status, t.due_at) for t in tasks]
 
     if not task_data:
         await update.message.reply_text("No open tasks.")
         return
 
-    for task_id, title, priority in task_data:
+    settings = get_settings()
+    tz_name = settings.user_timezone or "Asia/Singapore"
+    try:
+        import zoneinfo
+        user_tz = zoneinfo.ZoneInfo(tz_name)
+    except Exception:
+        user_tz = None
+
+    for task_id, title, priority, status, due_at in task_data:
         safe_title = escape_markdown(title, version=2)
+        lines = [f"*{safe_title}*"]
+        if due_at:
+            local_due = due_at.astimezone(user_tz) if user_tz else due_at
+            due_str = local_due.strftime("%a %d %b, %H:%M")
+            lines.append(f"⏰ Due: {escape_markdown(due_str, version=2)}")
+        lines.append(f"Priority: {priority}")
         await update.message.reply_text(
-            f"*{safe_title}*\nPriority: {priority}",
+            "\n".join(lines),
             parse_mode="MarkdownV2",
-            reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id)),
+            reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id, status)),
         )
 
 
@@ -223,27 +237,35 @@ async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    # Try to parse a due date from the text
+    # Try to parse a due date and extract a clean title
     due_at = None
+    clean_title = text
+    settings = get_settings()
     try:
-        import dateparser
-        settings_obj = get_settings()
-        tz = settings_obj.user_timezone or "Asia/Singapore"
-        parsed = dateparser.parse(
+        import re
+        from dateparser.search import search_dates
+        tz = settings.user_timezone or "Asia/Singapore"
+        results = search_dates(
             text,
             settings={"PREFER_DATES_FROM": "future", "TIMEZONE": tz, "RETURN_AS_TIMEZONE_AWARE": True},
         )
-        if parsed:
-            due_at = parsed
+        if results:
+            date_str, due_at = results[-1]
+            # Strip "by/due/on/at <date_str>" or just "<date_str>" from title
+            clean_title = re.sub(
+                rf'\s*(by|due|on|at)\s+{re.escape(date_str)}|\s*{re.escape(date_str)}',
+                "", text, flags=re.IGNORECASE,
+            ).strip(" ,")
+            if not clean_title:
+                clean_title = text
     except Exception:
         pass
 
-    settings = get_settings()
     with get_db() as db:
         from core.db.models import ActionItem, Reminder
         task = ActionItem(
             user_id=settings.default_user_id,
-            title=text,
+            title=clean_title,
             due_at=due_at,
             status="active",
             priority=50,
@@ -264,15 +286,21 @@ async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             db.add(reminder)
 
     safe_title = escape_markdown(task_title, version=2)
-    due_line = ""
+    lines = [f"✅ *{safe_title}*"]
     if due_at:
-        due_str = due_at.strftime("%a %d %b, %H:%M")
-        due_line = f"\n⏰ Reminder set for {escape_markdown(due_str, version=2)}"
+        try:
+            import zoneinfo
+            user_tz = zoneinfo.ZoneInfo(settings.user_timezone or "Asia/Singapore")
+            local_due = due_at.astimezone(user_tz)
+        except Exception:
+            local_due = due_at
+        due_str = local_due.strftime("%a %d %b, %H:%M")
+        lines.append(f"⏰ Due: {escape_markdown(due_str, version=2)}")
 
     await update.message.reply_text(
-        f"✅ Task created: *{safe_title}*{due_line}",
+        "\n".join(lines),
         parse_mode="MarkdownV2",
-        reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id)),
+        reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id, "active")),
     )
     log.info("task_created_manually", task_id=task_id, title=task_title, due_at=str(due_at))
 
