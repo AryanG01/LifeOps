@@ -36,6 +36,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("digest", commands.handle_digest))
     app.add_handler(CommandHandler("pvi",    commands.handle_pvi))
     app.add_handler(CommandHandler("focus",  commands.handle_focus))
+    app.add_handler(CommandHandler("newtask", commands.handle_newtask))
     app.add_handler(CommandHandler("status", commands.handle_status))
 
     # Register callback handler (inline button taps)

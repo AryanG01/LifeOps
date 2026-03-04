@@ -210,6 +210,42 @@ async def handle_focus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
+async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Create a task manually. Usage: /newtask Buy groceries by tomorrow 6pm"""
+    if not _guard(update):
+        return
+
+    text = " ".join(context.args).strip() if context.args else ""
+    if not text:
+        await update.message.reply_text(
+            "Usage: `/newtask <title>`\nExample: `/newtask Submit CS2103 report by Friday`",
+            parse_mode="MarkdownV2",
+        )
+        return
+
+    settings = get_settings()
+    with get_db() as db:
+        from core.db.models import ActionItem
+        task = ActionItem(
+            user_id=settings.default_user_id,
+            title=text,
+            status="active",
+            priority=50,
+            confidence=1.0,
+        )
+        db.add(task)
+        task_id = str(task.id)
+        task_title = task.title
+
+    safe_title = escape_markdown(task_title, version=2)
+    await update.message.reply_text(
+        f"✅ Task created: *{safe_title}*",
+        parse_mode="MarkdownV2",
+        reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id)),
+    )
+    log.info("task_created_manually", task_id=task_id, title=task_title)
+
+
 async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show system status: DB health, telegram, circuit breaker."""
     if not _guard(update):
