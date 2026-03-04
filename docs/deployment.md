@@ -426,6 +426,216 @@ docker compose up -d --no-deps worker bot api
 
 ---
 
+## Option E: Google Cloud e2-micro + Neon.tech (Free forever, no Docker needed)
+
+**Why this combo:** Google Cloud's Always Free tier includes one **e2-micro VM** (1 shared vCPU, 614 MB RAM) that never expires. Neon.tech provides **serverless Postgres** on a free plan (500 MB storage). Running the worker + bot as systemd services (no Docker) keeps RAM usage under 400 MB — within the free limit.
+
+**Cost: $0/month, no trial expiry.**
+
+---
+
+### Part 1: Neon.tech — Free Postgres
+
+1. Sign up at https://neon.tech (GitHub login works)
+2. **New Project** → Name: `clawdbot`, Region: `AWS us-east-1` (closest to GCP us-central1)
+3. On the dashboard, click **Connection string** → copy the full URL:
+   ```
+   postgresql://clawdbot:<password>@ep-xxx.us-east-1.aws.neon.tech/clawdbot?sslmode=require
+   ```
+4. Save this — it goes into `DATABASE_URL` in your `.env`
+
+---
+
+### Part 2: Google Cloud — Free e2-micro VM
+
+**Sign up:** https://cloud.google.com/free (credit card required, never charged for Always Free resources)
+
+#### Create the VM
+
+1. Go to **Compute Engine → VM Instances → Create Instance**
+2. Configure:
+   - **Name:** `clawdbot`
+   - **Region:** `us-central1` (or `us-east1`, `us-west1`) — **required for Always Free**
+   - **Machine type:** `e2-micro` (select from General Purpose → E2)
+   - **Boot disk:** Ubuntu 22.04 LTS, **30 GB Standard disk** (also Always Free)
+   - **Firewall:** check "Allow HTTP traffic" and "Allow HTTPS traffic"
+3. Under **Security → SSH Keys**, add your public key (`cat ~/.ssh/id_rsa.pub`)
+4. Click **Create** — wait ~1 minute, note the **External IP**
+
+#### Open port 8000 (optional, for web dashboard)
+
+In GCP Console → **VPC Network → Firewall → Create Firewall Rule**:
+- Name: `allow-clawdbot-api`
+- Targets: All instances in the network
+- Source IP ranges: `0.0.0.0/0`
+- Protocols and ports: TCP `8000`
+
+---
+
+### Part 3: VM Setup
+
+```bash
+ssh your-username@<external-ip>
+
+# Install Python and pip
+sudo apt update && sudo apt install -y git python3.11 python3.11-venv python3-pip
+
+# Clone the repo
+git clone https://github.com/AryanG01/LifeOps.git
+cd LifeOps
+
+# Create a virtualenv (keeps packages isolated)
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# Install all packages
+pip install -e packages/core -e packages/connectors -e packages/cli -e apps/worker -e apps/bot -e apps/api
+```
+
+---
+
+### Part 4: Configure .env
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Key values to set:
+
+```env
+# Use Neon connection string (NOT localhost)
+DATABASE_URL=postgresql://clawdbot:<password>@ep-xxx.us-east-1.aws.neon.tech/clawdbot?sslmode=require
+
+GEMINI_API_KEY=your-key
+TELEGRAM_BOT_TOKEN=your-token
+TELEGRAM_CHAT_ID=your-chat-id
+TELEGRAM_ENABLED=true
+USER_TIMEZONE=Asia/Singapore
+USER_DISPLAY_NAME=Aryan
+USER_EMAIL=your@email.com
+```
+
+---
+
+### Part 5: Upload Gmail credentials
+
+From your **local machine**:
+
+```bash
+ssh your-username@<external-ip> "mkdir -p ~/.config/clawdbot"
+scp ~/.config/clawdbot/gmail_token.json      your-username@<external-ip>:~/.config/clawdbot/
+scp ~/.config/clawdbot/gmail_credentials.json your-username@<external-ip>:~/.config/clawdbot/
+```
+
+---
+
+### Part 6: Run migrations + init
+
+```bash
+# On the VM (inside LifeOps dir, venv active):
+cd infra
+python3 -m alembic upgrade head
+cd ..
+python3 -m cli.main init
+```
+
+---
+
+### Part 7: Create systemd services
+
+Running as systemd services means they start on boot and restart on crash automatically.
+
+```bash
+# Get the full path to your virtualenv python
+which python3   # should show /home/<user>/LifeOps/.venv/bin/python3
+```
+
+Create the worker service:
+
+```bash
+sudo tee /etc/systemd/system/clawdbot-worker.service > /dev/null <<EOF
+[Unit]
+Description=Clawdbot Worker
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=/home/$(whoami)/LifeOps
+ExecStart=/home/$(whoami)/LifeOps/.venv/bin/python3 -m worker.main
+Restart=always
+RestartSec=10
+EnvironmentFile=/home/$(whoami)/LifeOps/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Create the bot service:
+
+```bash
+sudo tee /etc/systemd/system/clawdbot-bot.service > /dev/null <<EOF
+[Unit]
+Description=Clawdbot Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=/home/$(whoami)/LifeOps
+ExecStart=/home/$(whoami)/LifeOps/.venv/bin/python3 -m bot
+Restart=always
+RestartSec=10
+EnvironmentFile=/home/$(whoami)/LifeOps/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Enable and start both:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable clawdbot-worker clawdbot-bot
+sudo systemctl start clawdbot-worker clawdbot-bot
+```
+
+---
+
+### Part 8: Verify
+
+```bash
+sudo systemctl status clawdbot-worker   # should show "active (running)"
+sudo systemctl status clawdbot-bot      # should show "active (running)"
+
+# Live logs:
+sudo journalctl -u clawdbot-worker -f
+sudo journalctl -u clawdbot-bot -f
+```
+
+Send `/status` to your Telegram bot — it should respond within a few seconds.
+
+---
+
+### Updating Clawdbot on GCP
+
+```bash
+ssh your-username@<external-ip>
+cd ~/LifeOps
+git pull origin master
+source .venv/bin/activate
+pip install -e packages/core -e packages/connectors -e packages/cli -e apps/worker -e apps/bot -e apps/api
+# Run migrations if schema changed:
+cd infra && python3 -m alembic upgrade head && cd ..
+# Restart services:
+sudo systemctl restart clawdbot-worker clawdbot-bot
+```
+
+---
+
 ## Updating Clawdbot
 
 ### Self-hosted VPS
