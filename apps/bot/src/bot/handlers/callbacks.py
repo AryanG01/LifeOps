@@ -78,6 +78,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await _accept(query, task_id)
     elif action == "dismiss":
         await _dismiss(query, task_id)
+    elif action == "done":
+        await _done(query, task_id)
     elif action == "snooze":
         await _snooze(query, task_id)
     elif action == "reply_send":
@@ -124,6 +126,25 @@ async def _dismiss(query, task_id: str) -> None:
     except Exception:
         log.exception("dismiss_callback_error", task_id=task_id)
         await query.edit_message_text("⚠️ Something went wrong dismissing that task.")
+
+
+async def _done(query, task_id: str) -> None:
+    try:
+        now = datetime.now(timezone.utc)
+        with get_db() as db:
+            task = db.query(ActionItem).filter_by(id=task_id).first()
+            if not task:
+                await query.edit_message_text("⚠️ Task not found.")
+                return
+            title = task.title
+            task.status = "completed"
+            task.updated_at = now
+        log.info("task_completed_via_bot", task_id=task_id)
+        safe_title = escape_markdown(title, version=2)
+        await query.edit_message_text(f"✅ *Done:* {safe_title}", parse_mode="MarkdownV2")
+    except Exception:
+        log.exception("done_callback_error", task_id=task_id)
+        await query.edit_message_text("⚠️ Something went wrong marking that task done.")
 
 
 async def _snooze(query, task_id: str) -> None:

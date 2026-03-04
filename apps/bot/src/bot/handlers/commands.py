@@ -218,17 +218,33 @@ async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     text = " ".join(context.args).strip() if context.args else ""
     if not text:
         await update.message.reply_text(
-            "Usage: `/newtask <title>`\nExample: `/newtask Submit CS2103 report by Friday`",
+            "Usage: `/newtask <title>`\nExample: `/newtask Submit CS2103 report by Friday 5pm`",
             parse_mode="MarkdownV2",
         )
         return
 
+    # Try to parse a due date from the text
+    due_at = None
+    try:
+        import dateparser
+        settings_obj = get_settings()
+        tz = settings_obj.user_timezone or "Asia/Singapore"
+        parsed = dateparser.parse(
+            text,
+            settings={"PREFER_DATES_FROM": "future", "TIMEZONE": tz, "RETURN_AS_TIMEZONE_AWARE": True},
+        )
+        if parsed:
+            due_at = parsed
+    except Exception:
+        pass
+
     settings = get_settings()
     with get_db() as db:
-        from core.db.models import ActionItem
+        from core.db.models import ActionItem, Reminder
         task = ActionItem(
             user_id=settings.default_user_id,
             title=text,
+            due_at=due_at,
             status="active",
             priority=50,
             confidence=1.0,
@@ -237,13 +253,28 @@ async def handle_newtask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         task_id = str(task.id)
         task_title = task.title
 
+        if due_at:
+            reminder = Reminder(
+                action_item_id=task_id,
+                user_id=str(settings.default_user_id),
+                remind_at=due_at,
+                channel="telegram",
+                status="pending",
+            )
+            db.add(reminder)
+
     safe_title = escape_markdown(task_title, version=2)
+    due_line = ""
+    if due_at:
+        due_str = due_at.strftime("%a %d %b, %H:%M")
+        due_line = f"\n⏰ Reminder set for {escape_markdown(due_str, version=2)}"
+
     await update.message.reply_text(
-        f"✅ Task created: *{safe_title}*",
+        f"✅ Task created: *{safe_title}*{due_line}",
         parse_mode="MarkdownV2",
         reply_markup=InlineKeyboardMarkup(build_task_keyboard(task_id)),
     )
-    log.info("task_created_manually", task_id=task_id, title=task_title)
+    log.info("task_created_manually", task_id=task_id, title=task_title, due_at=str(due_at))
 
 
 async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -13,11 +13,16 @@ def build_task_keyboard(task_id: str) -> list[list[InlineKeyboardButton]]:
 
     callback_data format: "action:task_uuid"
     """
-    return [[
-        InlineKeyboardButton("✓ Accept",     callback_data=f"accept:{task_id}"),
-        InlineKeyboardButton("✗ Dismiss",    callback_data=f"dismiss:{task_id}"),
-        InlineKeyboardButton("⏰ Snooze 2h",  callback_data=f"snooze:{task_id}"),
-    ]]
+    return [
+        [
+            InlineKeyboardButton("✓ Accept",     callback_data=f"accept:{task_id}"),
+            InlineKeyboardButton("✗ Dismiss",    callback_data=f"dismiss:{task_id}"),
+            InlineKeyboardButton("⏰ Snooze 2h",  callback_data=f"snooze:{task_id}"),
+        ],
+        [
+            InlineKeyboardButton("✅ Done",       callback_data=f"done:{task_id}"),
+        ],
+    ]
 
 
 def build_task_keyboard_markup(task_id: str) -> InlineKeyboardMarkup:
