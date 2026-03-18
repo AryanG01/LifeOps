@@ -48,11 +48,11 @@ Three distinct styles, each used for its purpose:
 | Feature | What changes |
 |---------|-------------|
 | **T2 — Reply workflow** | `/replies` command + Edit conversation flow (show full draft, 3-stage: view → edit → confirm) |
-| **T3 — Interactive digest** | Split digest into header (Style C) + per-task cards (Style A) with buttons |
+| **T3 — Interactive digest** | Split digest into header (Style C) + per-task cards (Style A) with buttons. `generate_digest_interactive()` calls `generate_digest()` internally first (preserving the DB write to `Digest` table), then returns structured `{header_md, tasks: list[task_id]}` — the worker uses this to send header once, then iterates tasks via `send_task_notification()`. |
 | **T4 — Variable snooze** | Snooze menu: 1h · 3h · Tomorrow morning · Custom (natural language via dateparser) |
 | **T7 — Search** | `/search <query>` — ILIKE on tasks + messages, returns task cards + message rows |
 | **T8 — Task edit** | ✏️ Edit button on task cards → choose field → type value → confirm |
-| **T10 — Always notify** | Every reply draft triggers Telegram notification (remove urgency threshold) |
+| **T10 — Always notify** | Every reply draft triggers Telegram notification (remove urgency threshold). **Deploy ordering constraint:** T10's Edit button in the notification keyboard requires T2's `reply_edit:<id>` ConversationHandler to be registered in `bot/main.py` first — T2 must be deployed before T10 goes live, otherwise tapping Edit produces a silent no-op. |
 | **T11 — Account tagging** | `[Gmail]` / `[NUS Outlook]` prefix on inbox lines, digest updates, task source field |
 
 ---
@@ -60,11 +60,16 @@ Three distinct styles, each used for its purpose:
 ## 3. Backend Features
 
 ### 3.1 T5 — Weekly Auto-Digest
-- APScheduler cron: Sunday 19:00 SGT
+- APScheduler cron: Sunday 19:00 **SGT** — must use `timezone="Asia/Singapore"` explicitly (the existing daily digest cron omits timezone, so it fires at UTC which happens to be wrong for SGT)
+- `CronTrigger(day_of_week='sun', hour=19, minute=0, timezone="Asia/Singapore")`
 - Calls existing `generate_weekly_review()` → sends via `send_digest()`
 - Also triggerable via `/digest weekly` Telegram command
 
 ### 3.2 T12 — Multi-Account Gmail
+
+**Upgrade path for existing single-account users:** If a `Source` row exists with `display_name="Gmail"` (old unlabeled setup), `claw connect gmail --label X` will create a new `Gmail (X)` row alongside it. Both will poll — the old row uses `account_label="default"` fallback credentials, the new row uses the new label. If the credentials are the same account, this causes duplicate polling. **Mitigation:** `claw connect gmail` (no label) prints a warning: "You have an existing Gmail connection without a label. Run `claw connect gmail --label <name>` to migrate it." The old row is not automatically renamed — user migrates manually by reconnecting with a label.
+
+**"Connected" status** is inferred as: `source.sync_cursor is not None` (cursor is set after first successful poll).
 - `claw connect gmail --label personal` / `--label work`
 - Token keyed by label; email address stored in `source.config_json`
 - Poller reads `account_label` from `source.config_json` → loads correct credentials
@@ -90,7 +95,7 @@ Three distinct styles, each used for its purpose:
 
 | Layer | Choice | Reason |
 |-------|--------|--------|
-| Framework | Next.js 16 (App Router) | RSC, mobile-first, zero-config deploy |
+| Framework | Next.js 15 (App Router, latest stable) | RSC, mobile-first, zero-config deploy |
 | UI library | shadcn/ui + Tailwind | Dark mode, composable, design system |
 | Data fetching | SWR | Client-side polling, auto-revalidate |
 | Backend | FastAPI REST (unchanged) | Same endpoints, no migration needed |
@@ -142,13 +147,13 @@ low/done:    #34d399
 - Bottom stat bar: N active · N overdue · N proposed · N done today
 
 #### `/inbox`
-- Source filter: All · Gmail (personal) · Gmail (work) · NUS Outlook
+- Source filter: All + one tab per connected `Source` row (dynamically generated from DB, not hardcoded) — e.g. Gmail (personal) · Gmail (work) · NUS Outlook
 - Message rows: source badge · sender · subject · summary preview · timestamp
 - Click → expand panel: full summary, extracted action items with Accept/Dismiss, reply draft if exists
 - Unread indicator dot
 
 #### `/digest`
-- Today tab: PVI score card + regime description + 7-day sparkline
+- Today tab: PVI score card + regime description + 7-day sparkline (requires `GET /api/pvi/history?days=7` — see Section 4.5)
 - Sections: Do Today · Upcoming · Updates (same structure as Telegram Style C)
 - Task cards inline with buttons (same as `/tasks` rows)
 - Regenerate button (POST /api/digest/generate)
@@ -222,17 +227,18 @@ All data via SWR hooks hitting existing FastAPI endpoints. New endpoints needed:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/replies` | GET | List pending drafts |
+| `/api/replies` | GET | List pending drafts — query must join `ReplyDraft → Message` to filter by `user_id` (the `ReplyDraft` model has no direct `user_id` column) |
 | `/api/replies/{id}/send` | POST | Send via Gmail |
 | `/api/replies/{id}/dismiss` | POST | Skip draft |
 | `/api/replies/{id}/update` | POST | Save edited text |
-| `/api/digest/today` | GET | Today's digest JSON |
+| `/api/digest/today` | GET | Today's digest JSON. Empty state: if no `Digest` row exists yet for today (before 7am job runs), call `generate_digest()` on-demand and return result. Never return null/empty. |
 | `/api/digest/weekly` | GET | Weekly review JSON |
 | `/api/digest/generate` | POST | Regenerate today's digest |
 | `/api/focus/status` | GET | Active focus session |
-| `/api/focus/start` | POST | Start focus (duration param) |
+| `/api/focus/start` | POST | Start focus — body: `{duration_minutes: int}`. Stored as `ends_at = started_at + duration` (no new migration; `FocusSession.ends_at` already exists). |
 | `/api/focus/end` | POST | End focus session |
 | `/api/search` | GET | `?q=<query>` tasks + messages |
+| `/api/pvi/history` | GET | `?days=7` — returns array of `{date, score, regime}` for the sparkline |
 
 Existing endpoints (`/api/tasks`, `/api/messages`, `/api/pvi/today`) stay unchanged.
 
