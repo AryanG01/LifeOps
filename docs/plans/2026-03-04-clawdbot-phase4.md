@@ -4,6 +4,15 @@
 
 > **Active plan file:** `docs/plans/2026-03-04-clawdbot-phase4.md`
 > **Resume from here if context clears.**
+>
+> **Design spec (approved 2026-03-19):** `docs/superpowers/specs/2026-03-19-clawdbot-phase4-design.md`
+> **Web app implementation plan:** `docs/superpowers/plans/2026-03-19-clawdbot-webapp.md` (10 tasks, Next.js 15)
+>
+> **Execution order:**
+> - Week 1: T1, T5, T11, T6
+> - Week 2: T12, T4, T2, T10
+> - Week 3: T7, T8, T3 + Next.js scaffold + /tasks
+> - Week 4: Web app pages + FastAPI endpoints (follow web app plan)
 
 ---
 
