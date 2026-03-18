@@ -108,9 +108,16 @@ def _fetch_message_ids_full(service, max_results: int) -> tuple[list[str], str]:
 
 def _fetch_and_store_message(service, msg_id: str, user_id: str, source_id: str, fmt: str) -> bool:
     """Fetch a single Gmail message and store as RawEvent. Returns True if inserted."""
-    msg: dict = _with_backoff(lambda: (  # noqa: B023
-        service.users().messages().get(userId="me", id=msg_id, format=fmt).execute()
-    ))
+    try:
+        msg: dict = _with_backoff(lambda: (  # noqa: B023
+            service.users().messages().get(userId="me", id=msg_id, format=fmt).execute()
+        ))
+    except HttpError as exc:
+        if exc.resp.status == 404:
+            # Message was deleted/trashed before we could fetch it — skip silently.
+            log.info("gmail_message_not_found_skipped", msg_id=msg_id, user_id=user_id)
+            return False
+        raise
 
     payload = msg.get("payload", {})
     headers = payload.get("headers", [])
