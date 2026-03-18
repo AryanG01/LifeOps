@@ -60,6 +60,7 @@ def _call_gemini(system: str, user: str, settings=None, model: str | None = None
     response = client.chat.completions.create(
         model=model or settings.gemini_model,
         max_tokens=1024,
+        response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -126,7 +127,10 @@ def _is_actionable(sender: str, subject: str, preview: str) -> bool:
             user_prompt,
             model_override=settings.llm_triage_model,
         )
-        return json.loads(raw).get("actionable", True)
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rstrip().removesuffix("```").rstrip()
+        return json.loads(text).get("actionable", True)
     except Exception:
         return True  # fail open
 
@@ -143,7 +147,13 @@ def _record_triage_skip(db, message_id: str, prompt_version: str) -> None:
 
 def _validate(raw_json: str) -> ExtractionResult:
     """Parse and validate against strict schema. Raises on any error."""
-    data = json.loads(raw_json)
+    text = raw_json.strip()
+    # Strip markdown fences some models add despite instructions
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        if text.endswith("```"):
+            text = text[:-3].rstrip()
+    data = json.loads(text)
     return ExtractionResult.model_validate(data)
 
 
