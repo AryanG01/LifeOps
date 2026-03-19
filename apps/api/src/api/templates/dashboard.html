@@ -4,32 +4,123 @@
 <h1 class="text-2xl font-bold mb-6">Today — {{ today }}</h1>
 
 <section class="mb-8">
+  <h2 class="text-lg font-semibold text-indigo-400 mb-2">Focus</h2>
+  <div id="focus-block">
+    <span class="text-gray-500">Loading...</span>
+  </div>
+</section>
+
+<section class="mb-8">
   <h2 class="text-lg font-semibold text-indigo-400 mb-2">PVI Score</h2>
-  <div id="pvi-block"
-       hx-get="/api/pvi/today"
-       hx-trigger="load"
-       hx-swap="innerHTML">
+  <div id="pvi-block">
     <span class="text-gray-500">Loading...</span>
   </div>
 </section>
 
 <section class="mb-8">
   <h2 class="text-lg font-semibold text-indigo-400 mb-2">Open Tasks</h2>
-  <div id="tasks-summary"
-       hx-get="/api/tasks"
-       hx-trigger="load"
-       hx-swap="innerHTML">
+  <div id="tasks-summary">
     <span class="text-gray-500">Loading...</span>
   </div>
 </section>
 
 <section>
   <h2 class="text-lg font-semibold text-indigo-400 mb-2">Recent Emails</h2>
-  <div id="inbox-summary"
-       hx-get="/api/messages"
-       hx-trigger="load"
-       hx-swap="innerHTML">
+  <div id="inbox-summary">
     <span class="text-gray-500">Loading...</span>
   </div>
 </section>
+
+<script>
+async function loadFocus() {
+  const res = await fetch('/api/focus/status');
+  const d = await res.json();
+  const el = document.getElementById('focus-block');
+  if (!d.active) {
+    el.innerHTML = `<div class="flex items-center gap-4">
+      <span class="text-gray-400">No active focus session</span>
+      <form hx-post="/api/focus/start" hx-target="#focus-block" hx-swap="outerHTML" class="inline flex items-center gap-2">
+        <input type="number" name="minutes" value="25" min="1" max="480"
+               class="w-16 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-center" />
+        <span class="text-gray-500 text-sm">min</span>
+        <button class="px-3 py-1 bg-indigo-700 hover:bg-indigo-600 rounded text-sm">Start Focus</button>
+      </form>
+    </div>`;
+  } else {
+    const m = d.remaining_minutes || 0;
+    const s = d.remaining_seconds || 0;
+    el.innerHTML = `<div class="flex items-center gap-4">
+      <span class="text-green-400 font-semibold">🎯 Focus ON — ${m}m ${s}s remaining</span>
+      <form hx-post="/api/focus/end" hx-target="#focus-block" hx-swap="outerHTML" class="inline">
+        <button class="px-3 py-1 bg-red-800 hover:bg-red-700 rounded text-sm">End Focus</button>
+      </form>
+    </div>`;
+  }
+  htmx.process(el);
+}
+
+async function loadPvi() {
+  const res = await fetch('/api/pvi/today');
+  const d = await res.json();
+  const el = document.getElementById('pvi-block');
+  if (!d.score) {
+    el.innerHTML = '<span class="text-gray-500">No score yet today.</span>';
+    return;
+  }
+  const color = d.score >= 70 ? 'text-green-400' : d.score >= 40 ? 'text-yellow-400' : 'text-red-400';
+  el.innerHTML = `<span class="${color} text-3xl font-bold">${d.score}</span>
+    <span class="ml-3 text-gray-400">${d.regime || ''}</span>
+    ${d.explanation ? `<p class="mt-1 text-sm text-gray-400">${d.explanation}</p>` : ''}`;
+}
+
+async function loadTasksSummary() {
+  const res = await fetch('/api/tasks');
+  const tasks = await res.json();
+  const el = document.getElementById('tasks-summary');
+  if (!tasks.length) {
+    el.innerHTML = '<span class="text-gray-500">No open tasks.</span>';
+    return;
+  }
+  const overdueCount = tasks.filter(t => t.overdue).length;
+  const rows = tasks.slice(0, 5).map(t => {
+    const overdueCls = t.overdue ? 'text-red-400' : '';
+    const statusBadge = t.status === 'proposed'
+      ? '<span class="text-xs text-yellow-600 bg-yellow-900/40 px-1 rounded">proposed</span>'
+      : '<span class="text-xs text-green-700 bg-green-900/40 px-1 rounded">active</span>';
+    return `<tr class="${overdueCls}">
+      <td class="pr-4 py-1">${t.title}</td>
+      <td class="pr-4">${statusBadge}</td>
+      <td class="text-gray-500 text-sm">${t.due_at ? t.due_at.slice(0,10) : ''}</td>
+    </tr>`;
+  }).join('');
+  const more = tasks.length > 5 ? `<p class="text-gray-500 text-sm mt-2">+${tasks.length - 5} more — <a href="/tasks" class="text-indigo-400 hover:underline">view all</a></p>` : '';
+  const overdueNote = overdueCount ? `<p class="text-red-400 text-sm mb-2">${overdueCount} overdue</p>` : '';
+  el.innerHTML = `${overdueNote}<table class="w-full text-sm">${rows}</table>${more}`;
+}
+
+async function loadInboxSummary() {
+  const res = await fetch('/api/messages');
+  const msgs = await res.json();
+  const el = document.getElementById('inbox-summary');
+  if (!msgs.length) {
+    el.innerHTML = '<span class="text-gray-500">No messages.</span>';
+    return;
+  }
+  const rows = msgs.slice(0, 5).map(m => {
+    const srcBadge = m.source ? `<span class="text-xs text-indigo-400 bg-indigo-900/30 px-1 rounded mr-2">${m.source}</span>` : '';
+    const urgency = m.urgency ? ` <span class="text-xs text-yellow-500">[${m.urgency}]</span>` : '';
+    return `<div class="py-1 border-b border-gray-800 last:border-0">
+      ${srcBadge}<span class="font-medium">${m.sender || ''}</span>${urgency}
+      <span class="text-gray-400 ml-2 text-sm">${m.summary_short || m.body_preview || ''}</span>
+    </div>`;
+  }).join('');
+  const more = msgs.length > 5 ? `<a href="/inbox" class="text-indigo-400 hover:underline text-sm mt-2 block">view all ${msgs.length} messages</a>` : '';
+  el.innerHTML = rows + more;
+}
+
+loadFocus();
+loadPvi();
+loadTasksSummary();
+loadInboxSummary();
+</script>
 {% endblock %}

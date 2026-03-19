@@ -47,10 +47,12 @@ def cmd_status():
     tbl = Table(title="Connected Sources", show_header=True, header_style="bold cyan")
     tbl.add_column("Type")
     tbl.add_column("Display Name")
+    tbl.add_column("Account")
     tbl.add_column("Last Synced")
     for src in sources:
         synced = src.last_synced_at.strftime("%Y-%m-%d %H:%M") if src.last_synced_at else "never"
-        tbl.add_row(src.source_type, src.display_name, synced)
+        email = (src.config_json or {}).get("email", "") if src.config_json else ""
+        tbl.add_row(src.source_type, src.display_name, email, synced)
     if not sources:
-        tbl.add_row("—", "No sources connected", "—")
+        tbl.add_row("—", "No sources connected", "", "—")
     console.print(tbl)

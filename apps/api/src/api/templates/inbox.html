@@ -2,10 +2,42 @@
 {% block title %}Inbox{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold mb-6">Inbox</h1>
-<div id="inbox-list"
-     hx-get="/api/messages"
-     hx-trigger="load"
-     hx-swap="innerHTML">
+<div id="inbox-list">
   <span class="text-gray-500">Loading...</span>
 </div>
+
+<script>
+async function loadInbox() {
+  const res = await fetch('/api/messages');
+  const msgs = await res.json();
+  const el = document.getElementById('inbox-list');
+  if (!msgs.length) {
+    el.innerHTML = '<span class="text-gray-500">No messages.</span>';
+    return;
+  }
+  const urgencyColor = {'high': 'text-red-400', 'medium': 'text-yellow-400', 'low': 'text-green-400'};
+  const rows = msgs.map(m => {
+    const srcBadge = m.source
+      ? `<span class="text-xs text-indigo-400 bg-indigo-900/30 px-1 rounded mr-2">${m.source}</span>`
+      : '';
+    const urgBadge = m.urgency
+      ? `<span class="text-xs ${urgencyColor[m.urgency] || 'text-gray-400'} ml-2">${m.urgency}</span>`
+      : '';
+    const ts = m.message_ts ? m.message_ts.slice(0,16).replace('T',' ') : '';
+    return `<div class="py-3 border-b border-gray-800 last:border-0">
+      <div class="flex items-center gap-2 mb-1">
+        ${srcBadge}
+        <span class="font-medium">${m.sender || '(unknown)'}</span>
+        ${urgBadge}
+        <span class="ml-auto text-gray-600 text-xs">${ts}</span>
+      </div>
+      <div class="text-gray-300 text-sm">${m.title || ''}</div>
+      ${m.summary_short ? `<div class="text-gray-500 text-xs mt-1">${m.summary_short}</div>` : ''}
+    </div>`;
+  }).join('');
+  el.innerHTML = rows;
+}
+
+loadInbox();
+</script>
 {% endblock %}

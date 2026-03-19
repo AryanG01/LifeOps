@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Digest{% endblock %}
+{% block content %}
+<div class="flex items-center gap-4 mb-6">
+  <h1 class="text-2xl font-bold">Digest</h1>
+  <div class="ml-auto flex gap-2">
+    <button onclick="loadDigest('today')" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm" id="btn-today">Today</button>
+    <button onclick="loadDigest('weekly')" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm" id="btn-weekly">Weekly</button>
+    <button onclick="regenerate()" class="px-3 py-1 bg-indigo-800 hover:bg-indigo-700 rounded text-sm">↻ Regenerate</button>
+  </div>
+</div>
+
+<div id="digest-meta" class="mb-4 text-gray-500 text-sm"></div>
+<div id="digest-content" class="text-gray-300 leading-relaxed whitespace-pre-wrap">
+  <span class="text-gray-500">Loading...</span>
+</div>
+
+<script>
+async function loadDigest(which) {
+  const el = document.getElementById('digest-content');
+  const meta = document.getElementById('digest-meta');
+  el.innerHTML = '<span class="text-gray-500">Loading...</span>';
+  const res = await fetch(`/api/digest/${which}`);
+  const d = await res.json();
+
+  document.getElementById('btn-today').className =
+    which === 'today' ? 'px-3 py-1 bg-indigo-800 rounded text-sm' : 'px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm';
+  document.getElementById('btn-weekly').className =
+    which === 'weekly' ? 'px-3 py-1 bg-indigo-800 rounded text-sm' : 'px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm';
+
+  const regimeBadge = d.regime
+    ? `<span class="text-xs text-indigo-400 bg-indigo-900/30 px-1 rounded ml-2">${d.regime}</span>`
+    : '';
+  meta.innerHTML = (d.date ? `<span>${d.date}</span>` : '') + regimeBadge;
+  el.textContent = d.content || '(No content)';
+}
+
+async function regenerate() {
+  const el = document.getElementById('digest-content');
+  el.innerHTML = '<span class="text-gray-500">Regenerating...</span>';
+  const res = await fetch('/api/digest/generate', {method: 'POST'});
+  const d = await res.json();
+  document.getElementById('digest-meta').innerHTML = '';
+  el.textContent = d.content || '(No content)';
+}
+
+loadDigest('today');
+</script>
+{% endblock %}

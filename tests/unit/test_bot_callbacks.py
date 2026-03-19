@@ -82,8 +82,8 @@ async def test_handle_dismiss_updates_status():
 
 
 @pytest.mark.asyncio
-async def test_handle_snooze_creates_reminder():
-    """snooze:uuid → Reminder row added with remind_at ~2h from now."""
+async def test_handle_snooze_shows_menu():
+    """snooze:uuid → shows the snooze duration menu (no reminder created yet)."""
     from bot.handlers.callbacks import handle_callback
 
     task_id = "aaaabbbb-0000-0000-0000-000000000003"
@@ -105,12 +105,44 @@ async def test_handle_snooze_creates_reminder():
         update = _make_update(f"snooze:{task_id}")
         await handle_callback(update, _make_context())
 
+    # snooze: now shows the duration picker — no reminder should be added yet
+    from core.db.models import Reminder
+    reminders = [o for o in added_objects if isinstance(o, Reminder)]
+    assert len(reminders) == 0
+    # The message was edited to show the snooze menu
+    update.callback_query.edit_message_text.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_snooze_1h_creates_reminder():
+    """snooze_1h:uuid → Reminder row added with remind_at ~1h from now."""
+    from bot.handlers.callbacks import handle_callback
+
+    task_id = "aaaabbbb-0000-0000-0000-000000000003"
+    mock_task = MagicMock()
+    mock_task.id = task_id
+    mock_task.title = "Meeting prep"
+    mock_task.user_id = "00000000-0000-0000-0000-000000000001"
+
+    added_objects = []
+    db = MagicMock()
+    db.__enter__ = lambda s: db
+    db.__exit__ = MagicMock(return_value=False)
+    db.query.return_value.filter_by.return_value.first.return_value = mock_task
+    db.add.side_effect = added_objects.append
+
+    with patch("bot.handlers.callbacks.get_settings",
+               return_value=_make_settings()), \
+         patch("bot.handlers.callbacks.get_db", return_value=db):
+        update = _make_update(f"snooze_1h:{task_id}")
+        await handle_callback(update, _make_context())
+
     from core.db.models import Reminder
     reminders = [o for o in added_objects if isinstance(o, Reminder)]
     assert len(reminders) == 1
     now = datetime.now(timezone.utc)
     remind_delta = reminders[0].remind_at - now
-    assert 100 * 60 < remind_delta.total_seconds() < 130 * 60  # ~2h
+    assert 55 * 60 < remind_delta.total_seconds() < 65 * 60  # ~1h
 
 
 @pytest.mark.asyncio

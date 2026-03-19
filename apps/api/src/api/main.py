@@ -38,3 +38,13 @@ def tasks_page(request: Request):
 @app.get("/inbox", include_in_schema=False)
 def inbox_page(request: Request):
     return _templates.TemplateResponse("inbox.html", {"request": request})
+
+
+@app.get("/replies", include_in_schema=False)
+def replies_page(request: Request):
+    return _templates.TemplateResponse("replies.html", {"request": request})
+
+
+@app.get("/digest", include_in_schema=False)
+def digest_page(request: Request):
+    return _templates.TemplateResponse("digest.html", {"request": request})

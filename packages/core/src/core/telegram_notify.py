@@ -22,6 +22,7 @@ def send_task_notification(
     title: str,
     priority: int,
     due_at: datetime | None = None,
+    force: bool = False,
 ) -> bool:
     """
     Push a task notification with inline keyboard to Telegram.
@@ -29,16 +30,18 @@ def send_task_notification(
     Returns True on success, False if skipped or failed. Never raises.
 
     Args:
-        task_id: ActionItem UUID (used as callback_data payload).
-        title:   Task title shown in the notification.
-        priority: Integer 0-100. Only sends if >= settings.bot_notify_min_priority.
-        due_at:  Optional due datetime (UTC). Shown as "due DD Mon".
+        task_id:  ActionItem UUID (used as callback_data payload).
+        title:    Task title shown in the notification.
+        priority: Integer 0-100. Only sends if >= settings.bot_notify_min_priority
+                  unless ``force=True`` (used by the daily digest to send all tasks).
+        due_at:   Optional due datetime (UTC). Shown as "due DD Mon".
+        force:    Skip priority threshold check (for digest task cards).
     """
     settings = get_settings()
 
     if not settings.telegram_enabled:
         return False
-    if priority < settings.bot_notify_min_priority:
+    if not force and priority < settings.bot_notify_min_priority:
         log.debug("task_notify_skipped_priority", task_id=task_id, priority=priority)
         return False
 
@@ -49,9 +52,11 @@ def send_task_notification(
         f"Priority: {priority} | {due_str}"
     )
     keyboard = [[
-        {"text": "✓ Accept",    "callback_data": f"accept:{task_id}"},
-        {"text": "✗ Dismiss",   "callback_data": f"dismiss:{task_id}"},
-        {"text": "⏰ Snooze 2h", "callback_data": f"snooze:{task_id}"},
+        {"text": "✓ Accept",  "callback_data": f"accept:{task_id}"},
+        {"text": "✗ Dismiss", "callback_data": f"dismiss:{task_id}"},
+        {"text": "⏰ Snooze",  "callback_data": f"snooze:{task_id}"},
+    ], [
+        {"text": "✅ Done",    "callback_data": f"done:{task_id}"},
     ]]
 
     try:

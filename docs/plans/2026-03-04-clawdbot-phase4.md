@@ -19,17 +19,17 @@
 ## PROGRESS TRACKER
 
 - [ ] T1: Public web dashboard — Cloudflare Tunnel + API systemd service + HTTPS URL
-- [ ] T2: Reply draft workflow — read + edit + send from Telegram
-- [ ] T3: Interactive digest — task cards with buttons in morning digest
-- [ ] T4: Variable snooze — custom duration from Telegram
-- [ ] T5: Weekly auto-digest — scheduled Sunday 7pm Telegram send
+- [x] T2: Reply draft workflow — read + edit + send from Telegram
+- [x] T3: Interactive digest — task cards with buttons in morning digest
+- [x] T4: Variable snooze — custom duration from Telegram
+- [x] T5: Weekly auto-digest — scheduled Sunday 7pm Telegram send
 - [ ] T6: GCal + meeting prep activation — connect calendar on VM
-- [ ] T7: `/search` command — search tasks + messages from Telegram
-- [ ] T8: Task editing from Telegram — change due date, priority, title
+- [x] T7: `/search` command — search tasks + messages from Telegram
+- [x] T8: Task editing from Telegram — change due date, priority, title
 - [ ] T9: Dashboard v2 — reply drafts page, digest viewer, mobile layout
-- [ ] T10: Reply draft surfacing — lower urgency threshold, always notify
-- [ ] T11: Inbox account tagging — show which email address each message was delivered to
-- [ ] T12: Multi-account Gmail — connect 2+ Gmail addresses, each polled and tagged independently
+- [x] T10: Reply draft surfacing — lower urgency threshold, always notify
+- [x] T11: Inbox account tagging — show which email address each message was delivered to
+- [x] T12: Multi-account Gmail — connect 2+ Gmail addresses, each polled and tagged independently
 
 ---
 

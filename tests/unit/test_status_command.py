@@ -7,11 +7,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../packages/cli/s
 from unittest.mock import MagicMock, patch
 
 
-def _mock_source(source_type, display_name, last_synced_at=None):
+def _mock_source(source_type, display_name, last_synced_at=None, config_json=None):
     s = MagicMock()
     s.source_type = source_type
     s.display_name = display_name
     s.last_synced_at = last_synced_at
+    s.config_json = config_json  # None triggers the `or {}` fallback in status.py
     return s
 
 

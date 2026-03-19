@@ -32,8 +32,8 @@ def _with_backoff(fn, max_retries: int = 3):
                 raise
 
 
-def _build_service():
-    creds = get_credentials()
+def _build_service(account_label: str = "default"):
+    creds = get_credentials(account_label)
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
 
@@ -160,12 +160,14 @@ def poll_gmail(user_id: str, source_id: str) -> int:
     Returns count of newly inserted raw_events.
     """
     settings = get_settings()
-    service = _build_service()
-    fmt = "full" if settings.privacy_store_full_bodies else "metadata"
 
     with get_db() as db:
         source = db.query(Source).filter_by(id=source_id).first()
         cursor = source.sync_cursor if source else None
+        account_label = (source.config_json or {}).get("account_label", "default") if source else "default"
+
+    service = _build_service(account_label)
+    fmt = "full" if settings.privacy_store_full_bodies else "metadata"
 
     if cursor:
         log.info("gmail_delta_poll_start", history_id=cursor, user_id=user_id)

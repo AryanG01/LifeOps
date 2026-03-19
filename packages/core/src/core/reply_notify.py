@@ -49,8 +49,9 @@ def send_reply_notification(
     )
 
     keyboard = [[
-        {"text": "✉️ Send", "callback_data": f"reply_send:{draft_id}"},
-        {"text": "✗ Skip", "callback_data": f"reply_skip:{draft_id}"},
+        {"text": "✓ Send",  "callback_data": f"reply_send:{draft_id}"},
+        {"text": "✏️ Edit", "callback_data": f"reply_edit:{draft_id}"},
+        {"text": "✗ Skip",  "callback_data": f"reply_skip:{draft_id}"},
     ]]
 
     try:

@@ -18,7 +18,12 @@ from telegram.ext import (
 
 from core.config import get_settings
 from bot.handlers import commands, callbacks
-from bot.handlers.commands import NEWTASK_TITLE, NEWTASK_DUE
+from bot.handlers.commands import (
+    NEWTASK_TITLE, NEWTASK_DUE,
+    SNOOZE_CUSTOM,
+    REPLY_EDIT_TEXT, REPLY_EDIT_CONFIRM,
+    EDIT_CHOOSE_FIELD, EDIT_INPUT_VALUE,
+)
 
 log = structlog.get_logger()
 
@@ -50,9 +55,62 @@ def build_app() -> Application:
         conversation_timeout=120,
     )
     app.add_handler(newtask_conv)
-    app.add_handler(CommandHandler("status", commands.handle_status))
+    app.add_handler(CommandHandler("status",  commands.handle_status))
+    app.add_handler(CommandHandler("search",  commands.handle_search))
+    app.add_handler(CommandHandler("replies", commands.handle_replies))
 
-    # Register callback handler (inline button taps)
+    # Task edit ConversationHandler — entry: edit:<task_id> callback
+    edit_conv = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(commands.handle_edit_start, pattern="^edit:")
+        ],
+        states={
+            EDIT_CHOOSE_FIELD: [
+                CallbackQueryHandler(commands.handle_edit_field_choice, pattern="^edit_field:")
+            ],
+            EDIT_INPUT_VALUE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, commands.handle_edit_value)
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", commands.handle_edit_cancel)],
+        conversation_timeout=120,
+    )
+    app.add_handler(edit_conv)
+
+    # Reply edit ConversationHandler — entry point is reply_edit: callback; must come
+    # before the generic CallbackQueryHandler.
+    reply_edit_conv = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(commands.handle_reply_edit_start, pattern="^reply_edit:")
+        ],
+        states={
+            REPLY_EDIT_TEXT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, commands.handle_reply_edit_text)
+            ],
+            REPLY_EDIT_CONFIRM: [
+                CallbackQueryHandler(commands.handle_reply_edit_confirm, pattern="^reply_edit_")
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", commands.handle_reply_cancel)],
+        conversation_timeout=300,
+    )
+    app.add_handler(reply_edit_conv)
+
+    # Snooze custom ConversationHandler — must be registered BEFORE the generic
+    # CallbackQueryHandler so it wins the pattern match for snooze_custom:* callbacks.
+    snooze_conv = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(commands.handle_snooze_custom_start, pattern="^snooze_custom:")
+        ],
+        states={
+            SNOOZE_CUSTOM: [MessageHandler(filters.TEXT & ~filters.COMMAND, commands.handle_snooze_custom_input)],
+        },
+        fallbacks=[CommandHandler("cancel", commands.handle_snooze_cancel)],
+        conversation_timeout=120,
+    )
+    app.add_handler(snooze_conv)
+
+    # Register callback handler (inline button taps) — generic catch-all, must come last
     app.add_handler(CallbackQueryHandler(callbacks.handle_callback))
 
     log.info("bot_app_built")

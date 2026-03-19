@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, date, timezone
 from sqlalchemy import or_
 from core.db.engine import get_db
-from core.db.models import ActionItem, Message, MessageSummary, Policy, Digest, PVIDailyScore
+from core.db.models import ActionItem, Message, MessageSummary, Policy, Digest, PVIDailyScore, Source
 import structlog
 
 log = structlog.get_logger()
@@ -45,8 +45,10 @@ def generate_digest(user_id: str, for_date: date | None = None) -> str:
             ActionItem.due_at <= week_end,
         ).order_by(ActionItem.due_at, ActionItem.priority.desc()).limit(max_items).all()
 
-        recent_messages = db.query(Message, MessageSummary).join(
+        recent_messages = db.query(Message, MessageSummary, Source).join(
             MessageSummary, MessageSummary.message_id == Message.id, isouter=True
+        ).outerjoin(
+            Source, Source.id == Message.source_id
         ).filter(
             Message.user_id == user_id,
             Message.ingested_at >= now_utc - timedelta(days=1),
@@ -86,10 +88,11 @@ def generate_digest(user_id: str, for_date: date | None = None) -> str:
         lines.append("")
         lines.append("*📬 UPDATES*")
         if recent_messages:
-            for msg, summary in recent_messages:
+            for msg, summary, source in recent_messages:
                 short = summary.summary_short if summary else msg.body_preview[:80]
                 canvas_tag = " [Canvas]" if msg.is_canvas else ""
-                lines.append(f"• {msg.sender[:30]}{canvas_tag}: {short}")
+                source_tag = f" [{source.display_name}]" if source else ""
+                lines.append(f"• {msg.sender[:30]}{canvas_tag}{source_tag}: {short}")
         else:
             lines.append("_No recent updates_")
 
@@ -114,3 +117,68 @@ def generate_digest(user_id: str, for_date: date | None = None) -> str:
 
     log.info("digest_generated", user_id=user_id, date=str(for_date))
     return content
+
+
+def generate_digest_interactive(
+    user_id: str, for_date: date | None = None
+) -> tuple[str, list[dict]]:
+    """
+    Like generate_digest() but returns (header_md, do_today_tasks).
+
+    ``header_md`` is the full digest text with the DO TODAY section replaced by a
+    count line — so the worker can send interactive task cards instead of plain text.
+    ``do_today_tasks`` is a list of dicts with keys:
+        id, title, priority, status, due_at
+    """
+    if for_date is None:
+        for_date = datetime.now(tz=timezone.utc).date()
+
+    now_utc = datetime.now(tz=timezone.utc)
+    day_end = datetime.combine(for_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+
+    with get_db() as db:
+        policy = db.query(Policy).filter_by(user_id=user_id, date=for_date).first()
+        max_items = policy.max_digest_items if policy else 15
+
+        do_today = db.query(ActionItem).filter(
+            ActionItem.user_id == user_id,
+            ActionItem.status.in_(["proposed", "active"]),
+            ActionItem.due_at <= day_end,
+            ActionItem.due_at >= now_utc,
+        ).order_by(ActionItem.priority.desc()).limit(max_items).all()
+
+        task_dicts = [
+            {
+                "id": str(t.id),
+                "title": t.title,
+                "priority": t.priority,
+                "status": t.status,
+                "due_at": t.due_at,
+            }
+            for t in do_today
+        ]
+
+    # Generate the full digest (stores to DB, used for CLI / digest viewer)
+    generate_digest(user_id, for_date)
+
+    # Build a header-only version where DO TODAY is just a count line
+    count = len(task_dicts)
+    date_str = for_date.strftime("%a %d %b")
+    header_lines = [f"*Clawdbot Digest — {date_str}*"]
+
+    with get_db() as db:
+        pvi = db.query(PVIDailyScore).filter_by(user_id=user_id, date=for_date).first()
+        policy = db.query(Policy).filter_by(user_id=user_id, date=for_date).first()
+        regime = policy.regime if policy else "normal"
+        if pvi:
+            header_lines.append(f"Policy: {regime} | PVI: {pvi.score} ({pvi.regime})")
+        else:
+            header_lines.append(f"Policy: {regime}")
+        header_lines.append("")
+        header_lines.append("*📋 DO TODAY*")
+        if count:
+            header_lines.append(f"_{count} task{'s' if count != 1 else ''} below ↓_")
+        else:
+            header_lines.append("_Nothing due today_")
+
+    return "\n".join(header_lines), task_dicts

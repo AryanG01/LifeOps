@@ -164,21 +164,55 @@ def job_meeting_prep():
 
 
 def job_daily_pvi_and_digest():
-    """Compute daily PVI score and push digest to Telegram (7am cron)."""
+    """Compute daily PVI score and push interactive digest to Telegram (7am cron).
+
+    Sends the digest header first, then each 'do today' task as a separate
+    message with Accept/Dismiss/Done/Snooze inline buttons.
+    """
     try:
         from core.telegram_client import send_digest
+        from core.digest.generator import generate_digest_interactive
+        from core.telegram_notify import send_task_notification
 
         with get_db() as db:
             user_ids = [str(u.id) for u in db.query(User).all()]
 
         for user_id in user_ids:
             compute_pvi_daily(user_id)
-            content = generate_digest(user_id)
-            sent = send_digest(content)
-            log.info("daily_digest_pushed", user_id=user_id, telegram_sent=sent)
+            header, task_dicts = generate_digest_interactive(user_id)
+            send_digest(header)
+
+            for task in task_dicts:
+                send_task_notification(
+                    task_id=task["id"],
+                    title=task["title"],
+                    priority=task["priority"],
+                    due_at=task["due_at"],
+                    force=True,  # send all digest tasks regardless of priority threshold
+                )
+
+            log.info("daily_digest_pushed", user_id=user_id, task_cards=len(task_dicts))
 
     except Exception as exc:
         log.error("job_daily_digest_failed", error=str(exc))
+
+
+def job_weekly_digest():
+    """Generate and push weekly review digest every Sunday at 7pm (Singapore time)."""
+    try:
+        from core.digest.weekly import generate_weekly_review
+        from core.telegram_client import send_digest
+
+        with get_db() as db:
+            user_ids = [str(u.id) for u in db.query(User).all()]
+
+        for user_id in user_ids:
+            content = generate_weekly_review(user_id)
+            sent = send_digest(content)
+            log.info("weekly_digest_pushed", user_id=user_id, telegram_sent=sent)
+
+    except Exception as exc:
+        log.error("job_weekly_digest_failed", error=str(exc))
 
 
 def job_heartbeat():
