@@ -26,7 +26,7 @@
 - [ ] T6: GCal + meeting prep activation — connect calendar on VM
 - [x] T7: `/search` command — search tasks + messages from Telegram
 - [x] T8: Task editing from Telegram — change due date, priority, title
-- [ ] T9: Dashboard v2 — reply drafts page, digest viewer, mobile layout
+- [x] T9: Dashboard v2 — reply drafts page, digest viewer, focus toggle, nav bar, improved tasks/inbox
 - [x] T10: Reply draft surfacing — lower urgency threshold, always notify
 - [x] T11: Inbox account tagging — show which email address each message was delivered to
 - [x] T12: Multi-account Gmail — connect 2+ Gmail addresses, each polled and tagged independently
